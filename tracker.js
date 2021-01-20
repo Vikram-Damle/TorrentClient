@@ -10,44 +10,43 @@ module.exports.getPeers=(torrent,exp_callback)=>{
     const socket=dgram.createSocket('udp4');
     socket.bind(6888,()=>{socket.setRecvBufferSize(15000);});
     
-    var announceTimeout;
+   
     const connMsg=buildConnReq();
     const transID=connMsg.slice(12);
     
-    var peers=new Array();
-
-    let currAnnounce=2;
-    udpSend(socket,connMsg, torrent.announceList[0] ,()=>{console.log('connecting to tracker...')});
+    torrent.announceList.forEach(annUrl => {
+        sendUdpReq(connMsg, annUrl, ()=>{console.log('connecting to tracker '+ annUrl + ' ...')});
+    });
 
     socket.on('message', (response,sender) =>{
-        clearTimeout(announceTimeout);
+
         const senderUrl='udp://'+ sender.address+':'+sender.port;
+
         if(respType(response)==='connect'){
             const connResp = parseConnResp(response);
+
             if(Buffer.compare(connResp.transID,transID)!=0){
-                console.log('Failed! Trying again...')
-                udpSend(socket, buildConnReq(),senderUrl,()=>{console.log('connecting to tracker...')});
+                console.log('Failed: Transaction ID mismatch');
             }else{
-                console.log('connected!');
+                console.log('Connected to'+ senderUrl +'!');
             }
+
             const announceReq = buildAnnounceReq(connResp.connID,torrent);
-            udpSend(socket, announceReq,senderUrl,()=>{console.log('announcing to tracker...')});
+            sendUdpReq(announceReq, senderUrl,()=>{console.log('announcing to'+ senderUrl +'...')});
         }
         else if(respType(response)==='announce'){
-            console.log('announce successful!');
+
+            console.log('announce to ' + senderUrl +' successful!');
             const announceResp = parseAnnounceResp(response);
             exp_callback(announceResp.peers);
+            
         }
-        console.log(response);
     })
 
-    function udpSend(socket,message,rawUrl, callback=()=>{}){
+    function sendUdpReq(message, rawUrl, callback=()=>{}){
         const url = urlParse(rawUrl);
         console.log(message, rawUrl);
-        if(url.protocol=='udp:')socket.send(message,0,message.length,url.port,url.hostname,callback);
-        currAnnounce++;
-        if(torrent.announceList.length>currAnnounce)
-            announceTimeout=setTimeout(()=>udpSend(socket,message,torrent.announceList[currAnnounce],callback),config.TRACKERTIMEOUT);
+        if(url.protocol=='udp:')socket.send(message, 0, message.length, url.port, url.hostname, callback);
     }
 
     // socket.on('listening', () => {

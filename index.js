@@ -11,8 +11,8 @@ if(!fs.existsSync(config.DOWNLOADPATH)){
 }else if(fs.readFileSync(config.DOWNLOADPATH).length!=torrent.size){
     fs.writeFileSync(config.DOWNLOADPATH, Buffer.alloc(torrent.size),()=>{});
 }
-
+downloader.initDownload(torrent);
 tracker.getPeers(torrent,(peers)=>{
     console.log(peers);
-    downloader.download(torrent,peers);
+    downloader.addPeers(peers);
 })
