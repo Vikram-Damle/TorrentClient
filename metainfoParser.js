@@ -3,7 +3,7 @@ const crypto=require('crypto');
 
 module.exports.parse=(torrentFile)=>{
     const torrent = bencode.decode(torrentFile);
-    console.log(torrent.info.files);
+    console.log(torrent);
     let res= new Object();
     res.announce=torrent.announce.toString('utf8');
     res.announceList=new Array();
@@ -28,5 +28,12 @@ module.exports.parse=(torrentFile)=>{
     }
     res.pieceLength=torrent.info['piece length'];
     res.filename=torrent.info.name.toString('utf8');
+    if(torrent.info.files){
+        res.files=new Array();
+        torrent.info.files.forEach((file)=>{
+            res.files.push({size: file.length, path: file.path.toString('utf8')});
+        })
+    }
+    res.md5=crypto.createHash('md5').update(res.infoHash).digest().toString('hex');
     return res;
 }

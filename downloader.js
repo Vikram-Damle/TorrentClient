@@ -3,18 +3,19 @@ const messages = require('./message');
 const Bitfield = require('./utils').Bitfield;
 const crypto=require('crypto');
 const config =require('./config');
-const utils = require('./utils');
 const cliProgress = require('cli-progress');
-const fs= require('fs');
+
+
 
 let completePieces=0;
 var torrent;
 var peers;
 var pieces;
 var bitfield;
-var bfFile;
 var blockPerPiece;
+var fileManager;
 var has_initiated=false;
+
 
 class Peer{
     constructor(ip,port){
@@ -32,7 +33,7 @@ class Peer{
 
 class Piece{
     constructor(index){
-        //0:none, 1:requested, 2:completed
+        //-1:doNotDownload, 0:none, 1:requested, 2:completed
         this.index=index;
         this.state=0;
         this.peers=new Array();
@@ -40,28 +41,23 @@ class Piece{
     }
 }
 
-module.exports.initDownload=(parsedTorrent)=>{
+module.exports.initDownload=(parsedTorrent, fm)=>{
     has_initiated=true;
+    fileManager=fm;
     torrent=parsedTorrent;
-    fd= utils.openOverwrite(config.DOWNLOADPATH);
     pieces=new Array();
     peers = new Array();
     blockPerPiece = torrent.pieceLength/config.BLOCKLENGTH;
-    if(fs.existsSync(config.BITFIELDPATH)){
-        bitfield= Bitfield.fromBuffer(fs.readFileSync(config.BITFIELDPATH),torrent.pieceCount);
-        console.log(bitfield.buffer);
-    }else{
-        bitfield= new Bitfield(torrent.pieceCount);
-        fs.writeFileSync(config.BITFIELDPATH,bitfield.buffer);
-        console.log(bitfield.buffer);
-        console.log(fs.readFileSync('bitfield.bfd'));
-    }
-    bfFile=utils.openOverwrite(config.BITFIELDPATH);
+    bitfield = fileManager.bitfield;
+
     for(i=0;i<torrent.pieceCount;i++){
         pieces.push(new Piece(i));
         if(bitfield.get(i)){
             pieces[i].state=2;
             completePieces++;
+        }
+        if(!fileManager.toDl.get(i)){
+            pieces[i].state=-1;
         }
     }
     console.log("************************************************** "+completePieces);
@@ -70,7 +66,7 @@ module.exports.initDownload=(parsedTorrent)=>{
 
 module.exports.addPeers=(peer_conns)=>{
     if(!has_initiated){
-        console.warn("Download has not been initiated. Use initDownload to initiate.");
+        console.warn("Download has not been initialised. Use initDownload to initialise.");
         return;
     }
     peer_conns.forEach(peer_conn => {
@@ -86,12 +82,18 @@ function initiate(peer_conn){
 
     let interestedInterval=false;
     let keepAliveIntv=false;
+    let connTimeout= false;
     
-    socket.connect(peer.port,peer.ip,()=>{
-        peer.socket=socket;
-        console.log(peer.ip+' connected!');
-        socket.write(messages.Handshake(torrent));
-    });
+    connect();
+
+    function connect(){
+        console.log('connecting to '+peer.ip)
+        socket.connect(peer.port,peer.ip,()=>{
+            peer.socket=socket;
+            console.log(peer.ip+' connected!');
+            socket.write(messages.Handshake(torrent));
+        });
+    }
 
     onMessage(socket,(data)=>{
         if(!messages.isHandshake(data))
@@ -103,11 +105,13 @@ function initiate(peer_conn){
     socket.on('close',()=>{
         if(interestedInterval)clearInterval(interestedInterval);
         if(keepAliveIntv)clearInterval(keepAliveIntv);
-        console.log(peer.ip + " closed the connection...Downloading piece: " + peer.downloading);
+        console.log(peer.ip + " closed the connection...Was downloading piece: " + peer.downloading);
         if(peer.downloading!=-1){
             let dp=peer.pieces[peer.downloading];
             dp.state=0;
         }
+        //connTimeout=setTimeout(connect,5000);
+
     });
 
     socket.on('error',(error)=>{console.log(peer.ip ,"ERROR: " + error)});
@@ -120,27 +124,11 @@ function initiate(peer_conn){
         sendInterested(5000);
         socket.write(messages.Unchoke());
         //socket.write(messages.Bitfield(bitfield.buffer))
+
+        //Send KeepAlive every 2 minutes
         keepAlive(60000);
     }
-    
-    function sendInterested(interval){
-        interestedInterval=setInterval(()=>{
-            if(!peer.isChoking){
-                clearInterval(interestedInterval);
-                interestedInterval=false;
-            }
-            else{
-                socket.write(messages.Interested());
-                console.log("sending interested to "+peer.ip);
-            } 
-        },interval)
-    }
 
-    function keepAlive(interval){
-        keepAliveIntv=setInterval(()=>{
-            socket.write(messages.KeepAlive());
-        },interval);
-    }
     function handleMessage(msg){
         if(msg.len==0){
             console.log("Received KEEP ALIVE from "+ peer.ip);
@@ -151,84 +139,24 @@ function initiate(peer_conn){
             if(!interestedInterval)sendInterested(5000);
         }
         if(msg.id==1){
-            console.log("unchoked by "+peer.ip+" ============================= ^-^");
-            peer.isChoking=false;
-            console.log(peer.downloading);
-            if(peer.downloading==-1){
-                for(i=0;i<peer.pieces.length;i++){
-                    console.log(peer.pieces[i].index,peer.pieces[i].state);
-                    if(peer.pieces[i].state==0){
-                        requestPiece(peer.pieces[i]);
-                        break;
-                    }
-                }
-            }else requestPiece(peer.pieces[peer.downloading]);
+            handleUnchoke(msg)
         }
+
         if(msg.id==2){
             console.log("Received INTERESTED from "+ peer.ip);
             socket.write(messages.Unchoke());
         }
+
         if(msg.id==4){
-            pieces[msg.pieceIndex].peers.push(peer);
-            peer.pieces.push(pieces[msg.pieceIndex]);
-            if(pieces[msg.pieceIndex].state==0 && peer.isFree && !peer.isChoking){
-                requestPiece(pieces[msg.pieceIndex]);
-            }
+            handleHave(msg);
         }
+
         if(msg.id==5){
-            let bf=Bitfield.fromBuffer(msg.bitfield);
-            for(i=0;i<torrent.pieceCount;i++){
-                if(bf.get(i)){
-                    pieces[i].peers.push(peer);
-                    peer.pieces.push(pieces[i]);
-                    if(peer.isFree && pieces[i].state==0 && !peer.isChoking){
-                        requestPiece(pieces[i]);
-                    }
-                }
-            }
+            handleBitfield(msg);
         }
         
         if(msg.id==7){
-            peer.completedBlocks++;
-            console.log(msg.index + ": "+ peer.completedBlocks + '/'  + blockPerPiece +' @ '+msg.begin);
-            //pieces[msg.index].progress.update(peer.completedBlocks);
-            msg.block.copy(peer.downloadingBlock,msg.begin);
-            if(peer.completedBlocks==blockPerPiece){
-
-                console.log('Piece '+msg.index+' completed! from '+peer.ip)
-                completePieces++;
-                console.log(completePieces + ' Pieces completed!')
-                utils.writePiece(fd,peer.downloadingBlock,msg.index*torrent.pieceLength);
-                pieces[msg.index].state=2;
-                bitfield.set(msg.index);
-                bitfield.print();
-                peer.isFree=true;
-                peer.downloading=-1;
-                for(i=0;i<peer.pieces.length;i++){
-                    //console.log(peer.pieces[i].state==0,!peer.isChoking,peer.isFree);
-                    if(peer.pieces[i].state==0 && !peer.isChoking && peer.isFree){
-                        requestPiece(peer.pieces[i]);
-                    }
-                }
-                // for(i=0;i<peers.length;i++){
-                //     if(peers[i].socket)peers[i].socket.write(messages.Have(msg.index));
-                // }
-                fs.writeSync(bfFile,bitfield.buffer,0,bitfield.buffer.length,0);
-                let pieceHash=crypto.createHash('sha1').update(peer.downloadingBlock).digest();
-                console.log(pieceHash);
-                console.log(torrent.pieceHash[msg.index]);
-                let complete=true;
-                for(i=0;i<torrent.pieceCount;i++){
-                    if(pieces[i].state!=2)complete=false;
-                }
-                if(complete){
-                    console.log("=============================File Downloaded=================================");
-                    process.exit();
-                }
-
-            }else{
-                socket.write(messages.Request(msg.index,peer.completedBlocks*config.BLOCKLENGTH,config.BLOCKLENGTH));
-            }
+            handleBlock(msg);
         }
     }
 
@@ -269,4 +197,112 @@ function initiate(peer_conn){
         socket.write(messages.Request(piece.index,peer.completedBlocks,blockSize));
     }
 
+    function handleBlock(msg){
+        peer.completedBlocks++;
+        console.log(msg.index + ": "+ peer.completedBlocks + '/'  + blockPerPiece +' @ '+msg.begin);
+        //pieces[msg.index].progress.update(peer.completedBlocks);
+        msg.block.copy(peer.downloadingBlock,msg.begin);
+        if(peer.completedBlocks==blockPerPiece){
+            
+            let pieceHash=crypto.createHash('sha1').update(peer.downloadingBlock).digest();
+            console.log(pieceHash);
+            console.log(torrent.pieceHash[msg.index]);
+            
+            
+            if(pieceHash.equals(torrent.pieceHash[msg.index])){
+                console.log('Piece '+msg.index+' completed! from '+peer.ip)
+                console.log(completePieces + ' Pieces completed!')
+                completePieces++;
+
+                fileManager.writePiece(msg.index, peer.downloadingBlock);
+                pieces[msg.index].state=2;
+
+                bitfield.set(msg.index);
+                fileManager.updateBitfield(bitfield);
+            }
+
+            bitfield.print();
+            peer.isFree=true;
+            peer.downloading=-1;
+
+            for(i=0;i<peer.pieces.length;i++){
+                //console.log(peer.pieces[i].state==0,!peer.isChoking,peer.isFree);
+                if(peer.pieces[i].state==0 && !peer.isChoking && peer.isFree){
+                    requestPiece(peer.pieces[i]);
+                }
+            }
+            // for(i=0;i<peers.length;i++){
+            //     if(peers[i].socket)peers[i].socket.write(messages.Have(msg.index));
+            // }
+
+
+            let complete=true;
+            for(i=0;i<torrent.pieceCount;i++){
+                if(pieces[i].state!=2 && pieces[i].state!=-1)complete=false;
+            }
+            if(complete){
+                console.log("=============================File Downloaded=================================");
+                fileManager.parseFiles();
+                process.exit();
+            }
+
+        }else{
+            socket.write(messages.Request(msg.index,peer.completedBlocks*config.BLOCKLENGTH,config.BLOCKLENGTH));
+        }
+    }
+
+    function handleBitfield(msg){
+        let bf=Bitfield.fromBuffer(msg.bitfield);
+        for(i=0;i<torrent.pieceCount;i++){
+            if(bf.get(i)){
+                pieces[i].peers.push(peer);
+                peer.pieces.push(pieces[i]);
+                if(peer.isFree && pieces[i].state==0 && !peer.isChoking){
+                    requestPiece(pieces[i]);
+                }
+            }
+        }
+    }
+
+    function handleHave(msg){
+        pieces[msg.pieceIndex].peers.push(peer);
+        peer.pieces.push(pieces[msg.pieceIndex]);
+        if(pieces[msg.pieceIndex].state==0 && peer.isFree && !peer.isChoking){
+            requestPiece(pieces[msg.pieceIndex]);
+        }
+    }
+
+    function handleUnchoke(msg){
+        console.log("unchoked by "+peer.ip+" ============================= ^-^");
+        peer.isChoking=false;
+        // console.log(peer.downloading);
+        if(peer.downloading==-1){
+            for(i=0;i<peer.pieces.length;i++){
+                //console.log(peer.pieces[i].index,peer.pieces[i].state);
+                if(peer.pieces[i].state==0){
+                    requestPiece(peer.pieces[i]);
+                    break;
+                }
+            }
+        }else requestPiece(peer.pieces[peer.downloading]);
+    }
+
+    function sendInterested(interval){
+        interestedInterval=setInterval(()=>{
+            if(!peer.isChoking){
+                clearInterval(interestedInterval);
+                interestedInterval=false;
+            }
+            else{
+                socket.write(messages.Interested());
+                console.log("sending interested to "+peer.ip);
+            } 
+        },interval)
+    }
+
+    function keepAlive(interval){
+        keepAliveIntv=setInterval(()=>{
+            socket.write(messages.KeepAlive());
+        },interval);
+    }
 }

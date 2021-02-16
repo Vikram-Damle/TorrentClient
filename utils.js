@@ -54,6 +54,15 @@ module.exports.Bitfield = class Bitfield{
         bf.buffer = buffer.slice(0,Math.ceil(size/8));
         return bf;
     }
+
+    static fromArray(array, size){
+        const bf = new Bitfield(size);
+        array.forEach(ele => {
+            bf.set(ele-1);
+        });
+        return bf;
+    }
+
     print(){
         for(var i=0;i<this.length;i++){
             if(this.get(i))
@@ -63,17 +72,14 @@ module.exports.Bitfield = class Bitfield{
         }
         console.log('');
     }
+
+    count(){
+        let ctr=0;
+        for(var i=0;i<this.length;i++){
+            if(this.get(i))ctr++;
+        }
+        return ctr;
+    }
 }
 
-module.exports.writePiece=function(file,piece,offset){
-    console.log(piece.length,offset,piece);
-    fs.writeSync(file, piece, 0, piece.length, offset);   
-    console.log('Piece written successfully!'); 
-}
 
-module.exports.openOverwrite=function(path){
-    let oldData=fs.readFileSync(path);
-    let fd=fs.openSync(path, 'w'); 
-    fs.writeSync(fd,oldData);
-    return fd;
-}
