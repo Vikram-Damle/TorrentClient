@@ -30,13 +30,16 @@ fileManager.init(torrent, (fm) =>{
 -save file selection
 -peer reconnection
 -Selective file download                        X
--end game
--File parsing after download
--peer protocol validation
--piece validation                               
+-end game                                       .
+-File parsing after download                    X
+-peer protocol validation                       X
+-piece validation                               X                       
 -magnet link support by metadata extension
 -http tracker support
--nested directories
--send the requested piece to the back of the list in the peer object, so incase of failure it would be download last by that peer
+-nested directories                             X
+-remove temp files                              X
+-corrupt file loop
+-max simultaneous download of a piece
+-cancel pieces if dled
 */
 

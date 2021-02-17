@@ -31,7 +31,7 @@ module.exports.parse=(torrentFile)=>{
     if(torrent.info.files){
         res.files=new Array();
         torrent.info.files.forEach((file)=>{
-            res.files.push({size: file.length, path: file.path.toString('utf8')});
+            res.files.push({size: file.length, path: file.path.toString('utf8').split(',').join('/')});
         })
     }
     res.md5=crypto.createHash('md5').update(res.infoHash).digest().toString('hex');

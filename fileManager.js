@@ -10,13 +10,14 @@ const config = require('./config');
 
 class FileManager{
 
-    constructor(torrent, toDl, bfFile, bf, fileToWrite, filesToDl){
+    constructor(torrent, toDl, bfFile, bf, fileToWrite, filesToDl, paths){
         this.torrent = torrent;
         this.toDl = toDl;
         this.bfFile = bfFile;
         this.bitfield = bf;
         this.fileToWrite = fileToWrite;
         this.filesToDl=filesToDl;
+        this.paths=paths;
     }
 
     writePiece(piece,pieceData){
@@ -36,6 +37,7 @@ class FileManager{
     };
 
     parseFiles(){
+        console.log("Parsing the files...");
         if(!this.torrent.files){
             let data=Buffer.alloc(this.torrent.size);
             fs.readSync(this.fileToWrite[0],data,0,data.length,0);
@@ -47,10 +49,10 @@ class FileManager{
         this.torrent.files.forEach((file,ind)=>{
             if(this.filesToDl.get(ind)){
                 let startPiece = Math.floor(prefSize/torrent.pieceLength);
-                console.log(startPiece);
-                console.log(this.fileToWrite);
+                // console.log(startPiece);
+                // console.log(this.fileToWrite);
                  let data = Buffer.alloc(file.size);
-                console.log(startPiece + '=========================='+file.size+'---------'+this.fileToWrite[startPiece])
+                //console.log(startPiece + '=========================='+file.size+'---------'+this.fileToWrite[startPiece])
                 let offset=0;
                 for(let i=0; i<startPiece; i++){
                     if(this.fileToWrite[startPiece]==this.fileToWrite[i])
@@ -59,14 +61,24 @@ class FileManager{
                 offset+=prefSize%torrent.pieceLength;
                 fs.readSync(this.fileToWrite[startPiece],data, 0, data.length, offset);
                 //let data = fs.readFileSync(config.DOWNLOADDIR + torrent.filename + '/' + torrent.md5 + '0' +'.mtr');
-                console.log('read');
+                createSubDirs(config.DOWNLOADDIR + torrent.filename + '/' + file.path);
                 fs.writeFileSync(config.DOWNLOADDIR + torrent.filename + '/' + file.path, data);
-                console.log('written');
                 //ctr++;
             }
             prefSize+=file.size;
         });
-
+        console.log("removing temp files...")
+        let fds=new Set();
+        for (const [piece, fd] of Object.entries(this.fileToWrite)) {
+            fds.add(fd);
+        }
+        fds.forEach((fd)=>{
+            fs.closeSync(fd);
+        });
+        this.paths.forEach((path,ind)=>{
+            fs.unlinkSync(path);
+        })
+        console.log("Finished!")
         process.exit();
     };
 };
@@ -77,6 +89,7 @@ var toDl;
 var bfFile;
 var bitfield;
 var fileToWrite = new Object();
+var paths = new Array();
 
 module.exports.init = (torrentToDl, callback)=>{
     torrent = torrentToDl;
@@ -99,22 +112,16 @@ module.exports.init = (torrentToDl, callback)=>{
     }
 
     bfFile=openOverwrite(bitfieldPath);
+    paths.push(bitfieldPath);
     selectFiles(callback);
 }
 
 function selectFiles(callback){
     if(torrent.files){
-        let mxNameLen=0;
-        torrent.files.forEach((ele=>{mxNameLen=Math.max(mxNameLen,ele.path.length);}));
-        mxNameLen = Math.ceil(mxNameLen/8)*8;
-        torrent.files.forEach((ele,ind) => {
-            let name = ele.path;
-            for(var i=0;i<Math.ceil((mxNameLen-name.length)/8);i++)name+='\t';
-            console.log((ind+1) + '. ' + name + '\t' + (ele.size/1048576).toFixed(2) + 'MB');
-        });
+        printFiles(torrent);
         readline.question('Enter space separated indices of the files you want to download ( * for all): ',(inp)=>{
             let sel;
-            if(inp=='*') sel = Array.from({length: torrent.pieceCount}, (_, i) => i + 1);
+            if(inp=='*') sel = Array.from({length: torrent.files.length}, (_, i) => i + 1);
             else sel = inp.split(' ').map((ele)=>parseInt(ele));
             let prefSum = new Array();
             prefSum.push(0);
@@ -129,17 +136,16 @@ function selectFiles(callback){
             })
             let bf = Bitfield.fromArray(toDl,torrent.pieceCount);
             let filesToDl = Bitfield.fromArray(sel,torrent.files.length);
-            bf.print();
             toDl=bf;
             createFiles();
-            let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, filesToDl);
+            let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, filesToDl, paths);
             callback(fm);
         });
     }else{
         toDl = new Bitfield(torrent.pieceCount);
         for(let i=0; i < toDl.length; i++)toDl.set(i);
         createFiles();
-        let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, null);
+        let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, null, paths);
         callback(fm);
     }
 };
@@ -169,6 +175,7 @@ function createFiles(){
             if(!fs.existsSync(path))
                 fs.writeFileSync(path, Buffer.alloc((j-i)*torrent.pieceLength),()=>{});
             let t = openOverwrite(path);
+            paths.push(path);
             for(let k=i; k<j; k++){
                 fileToWrite[k]=t;
             }
@@ -181,6 +188,7 @@ function createFiles(){
         if(!fs.existsSync(path))
             fs.writeFileSync(path, Buffer.alloc(torrent.size),()=>{});
         let t=openOverwrite(path);
+        paths.push(path);
         for(let k=0; k<torrent.pieceCount; k++){
             fileToWrite[k]=t;
         }
@@ -190,9 +198,31 @@ function createFiles(){
 
 
 
-var openOverwrite=function(path){
+function openOverwrite(path){
     let oldData=fs.readFileSync(path);
     let fd=fs.openSync(path, 'w+'); 
     fs.writeSync(fd,oldData);
     return fd;
+}
+
+function createSubDirs(path){
+    let dir = path.split('/');
+    dir.pop();
+    if(dir.length){
+        dir=dir.join('/');
+        fs.mkdirSync(dir,{recursive:true});
+    }
+}
+
+function printFiles(torrent){
+    let mxNameLen=0;
+    torrent.files.forEach((ele=>{mxNameLen=Math.max(mxNameLen,ele.path.length);}));
+    mxNameLen = Math.ceil(mxNameLen/8)*8;
+    torrent.files.forEach((ele,ind) => {
+        let name = (ind+1) + '. ' + ele.path;
+        //adding appropriate padding
+        let padding='';
+        for(var i=0;i<Math.ceil((mxNameLen-name.length)/8);i++)padding+='\t';
+        console.log( name + padding + '\t' + (ele.size/1048576).toFixed(2) + 'MB');
+    });
 }
