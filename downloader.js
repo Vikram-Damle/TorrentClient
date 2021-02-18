@@ -118,6 +118,24 @@ function initiate(peer_conn){
 
     socket.on('error',(error)=>{console.log(peer.ip ,"ERROR: " + error)});
 
+    function onMessage(socket, callback){
+        let buf= Buffer.alloc(0);
+        let handshake = true;
+    
+        //for handshake len = len(pstr) + 49
+        //for other messages length is stores in first 4 bytes
+        const msgLen=()=>handshake? buf.readUInt8(0) + 49 : buf.readUInt32BE(0) + 4;
+    
+        socket.on('data', (data)=>{
+            buf = Buffer.concat([buf,data])
+            while(buf.length>=4 && buf.length>=msgLen()){
+                callback(buf.slice(0,msgLen()));
+                buf = buf.slice(msgLen());
+                //since only the first message will be a handshake
+                handshake=false;
+            }
+        })
+    }
 
     function handleHandshake(data){
         console.log("Recieved Handshake!");
@@ -126,12 +144,17 @@ function initiate(peer_conn){
         if(msg.pstr!='BitTorrent protocol'){  
             socket.end(()=>{console.log(peer.ip +": Protocol Mismatch. Connection closed.");})
         }
-        sendInterested(5000);
-        socket.write(messages.Unchoke());
-        //socket.write(messages.Bitfield(bitfield.buffer))
-
-        //Send KeepAlive every 2 minutes
-        keepAlive(60000);
+        else if(!msg.infoHash.equals(torrent.infoHash)){
+            socket.end(()=>{console.log(peer.ip +": Info Hash Mismatch. Connection closed.");})
+        }
+        else{
+            sendInterested(5000);
+            socket.write(messages.Unchoke());
+            //socket.write(messages.Bitfield(bitfield.buffer))
+    
+            //Send KeepAlive every 2 minutes
+            keepAlive(60000);
+        }
     }
 
     function handleMessage(msg){
@@ -166,26 +189,6 @@ function initiate(peer_conn){
     }
 
 
-    
-    function onMessage(socket, callback){
-        let buf= Buffer.alloc(0);
-        let handshake = true;
-    
-        //for handshake len = len(pstr) + 49
-        //for other messages length is stores in first 4 bytes
-        const msgLen=()=>handshake? buf.readUInt8(0) + 49 : buf.readUInt32BE(0) + 4;
-    
-        socket.on('data', (data)=>{
-            buf = Buffer.concat([buf,data])
-            while(buf.length>=4 && buf.length>=msgLen()){
-                callback(buf.slice(0,msgLen()));
-                buf = buf.slice(msgLen());
-                //since only the first message will be a handshake
-                handshake=false;
-            }
-        })
-    }
-
     function requestPiece(piece){
         // if(piece.index>1)return;
         // piece.progress = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
@@ -194,13 +197,22 @@ function initiate(peer_conn){
         peer.isFree=false;
         piece.state=1;
         let blockSize=config.BLOCKLENGTH;
-        if(piece.index!=peer.downloading){
-            peer.downloading=piece.index;
-            peer.downloadingBlock=Buffer.alloc(torrent.pieceLength);
+        if(piece.index != peer.downloading){
+            peer.downloading = piece.index;
+            if(piece.index != torrent.pieceCount - 1)
+                peer.downloadingBlock = Buffer.alloc(torrent.pieceLength);
+            else
+                peer.downloadingBlock = Buffer.alloc(torrent.size % torrent.pieceLength);
             peer.completedBlocks=0;
         }
+
+        let len=config.BLOCKLENGTH;
+        //If it is the last block
+        if(piece.index==torrent.pieceCount-1 && (peer.completedBlocks+1)*config.BLOCKLENGTH > torrent.size%torrent.pieceLength)
+            len=torrent.size%config.BLOCKLENGTH;
+
         console.log('requesting piece '+piece.index + ' from ' + peer.ip);
-        socket.write(messages.Request(piece.index,peer.completedBlocks,blockSize));
+        socket.write(messages.Request(piece.index,peer.completedBlocks,len));
     }
 
     function handleBlock(msg){
@@ -208,7 +220,12 @@ function initiate(peer_conn){
         console.log(msg.index + ": "+ peer.completedBlocks + '/'  + blockPerPiece +' @ '+msg.begin);
         //pieces[msg.index].progress.update(peer.completedBlocks);
         msg.block.copy(peer.downloadingBlock,msg.begin);
-        if(peer.completedBlocks==blockPerPiece){
+
+        //check if it is the last block of last piece
+        let lst = (msg.index=torrent.pieceCount-1) 
+                && peer.completedBlocks == Math.ceil((torrent.size % torrent.pieceLength)/config.BLOCKLENGTH);
+
+        if(peer.completedBlocks==blockPerPiece || lst){
             
             let pieceHash=crypto.createHash('sha1').update(peer.downloadingBlock).digest();
             console.log(pieceHash);
@@ -216,9 +233,9 @@ function initiate(peer_conn){
             
             
             if(pieceHash.equals(torrent.pieceHash[msg.index]) && pieces[msg.index].state!=2){
+                completePieces++;
                 console.log('Piece '+msg.index+' completed! from '+peer.ip)
                 console.log(completePieces +'/'+ toDlCount + ' Pieces completed!')
-                completePieces++;
 
                 fileManager.writePiece(msg.index, peer.downloadingBlock);
                 pieces[msg.index].state=2;
@@ -253,7 +270,11 @@ function initiate(peer_conn){
             }
 
         }else{
-            socket.write(messages.Request(msg.index,peer.completedBlocks*config.BLOCKLENGTH,config.BLOCKLENGTH));
+            let len=config.BLOCKLENGTH;
+            if(msg.index==torrent.pieceCount-1 && (peer.completedBlocks+1)*config.BLOCKLENGTH > torrent.size%torrent.pieceLength)
+                len=torrent.size%config.BLOCKLENGTH;
+
+            socket.write(messages.Request(msg.index,peer.completedBlocks*config.BLOCKLENGTH,len));
         }
     }
 

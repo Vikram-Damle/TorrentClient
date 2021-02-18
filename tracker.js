@@ -28,11 +28,11 @@ module.exports.getPeers=(torrent,exp_callback)=>{
             if(Buffer.compare(connResp.transID,transID)!=0){
                 console.log('Failed: Transaction ID mismatch');
             }else{
-                console.log('Connected to'+ senderUrl +'!');
+                console.log('Connected to '+ senderUrl +'!');
             }
 
             const announceReq = buildAnnounceReq(connResp.connID,torrent);
-            sendUdpReq(announceReq, senderUrl,()=>{console.log('announcing to'+ senderUrl +'...')});
+            sendUdpReq(announceReq, senderUrl,()=>{console.log('announcing to '+ senderUrl +'...')});
         }
         else if(respType(response)==='announce'){
 

@@ -4,6 +4,6 @@ module.exports = {
     BLOCKLENGTH: Math.pow(2,14),
     DOWNLOADDIR: 'files/',
     BITFIELDDIR: 'files/',
-    TORRENTPATH: 'files/monogatari.torrent',
+    TORRENTPATH: 'files/PN.torrent',
     TRACKERTIMEOUT: 3000,
 }

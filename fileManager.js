@@ -42,31 +42,33 @@ class FileManager{
             let data=Buffer.alloc(this.torrent.size);
             fs.readSync(this.fileToWrite[0],data,0,data.length,0);
             fs.writeFileSync(config.DOWNLOADDIR + this.torrent.filename, data);
-            return;
         }
-        let prefSize = 0;
-        let ctr=-1;
-        this.torrent.files.forEach((file,ind)=>{
-            if(this.filesToDl.get(ind)){
-                let startPiece = Math.floor(prefSize/torrent.pieceLength);
-                // console.log(startPiece);
-                // console.log(this.fileToWrite);
-                 let data = Buffer.alloc(file.size);
-                //console.log(startPiece + '=========================='+file.size+'---------'+this.fileToWrite[startPiece])
-                let offset=0;
-                for(let i=0; i<startPiece; i++){
-                    if(this.fileToWrite[startPiece]==this.fileToWrite[i])
-                    offset+=this.torrent.pieceLength;
+        else{
+            let prefSize = 0;
+            let ctr=-1;
+            this.torrent.files.forEach((file,ind)=>{
+                if(this.filesToDl.get(ind)){
+                    let startPiece = Math.floor(prefSize/torrent.pieceLength);
+                    // console.log(startPiece);
+                    // console.log(this.fileToWrite);
+                    let data = Buffer.alloc(file.size);
+                    //console.log(startPiece + '=========================='+file.size+'---------'+this.fileToWrite[startPiece])
+                    let offset=0;
+                    for(let i=0; i<startPiece; i++){
+                        if(this.fileToWrite[startPiece]==this.fileToWrite[i])
+                        offset+=this.torrent.pieceLength;
+                    }
+                    offset+=prefSize%torrent.pieceLength;
+                    fs.readSync(this.fileToWrite[startPiece],data, 0, data.length, offset);
+                    //let data = fs.readFileSync(config.DOWNLOADDIR + torrent.filename + '/' + torrent.md5 + '0' +'.mtr');
+                    createSubDirs(config.DOWNLOADDIR + torrent.filename + '/' + file.path);
+                    fs.writeFileSync(config.DOWNLOADDIR + torrent.filename + '/' + file.path, data);
+                    //ctr++;
                 }
-                offset+=prefSize%torrent.pieceLength;
-                fs.readSync(this.fileToWrite[startPiece],data, 0, data.length, offset);
-                //let data = fs.readFileSync(config.DOWNLOADDIR + torrent.filename + '/' + torrent.md5 + '0' +'.mtr');
-                createSubDirs(config.DOWNLOADDIR + torrent.filename + '/' + file.path);
-                fs.writeFileSync(config.DOWNLOADDIR + torrent.filename + '/' + file.path, data);
-                //ctr++;
-            }
-            prefSize+=file.size;
-        });
+                prefSize+=file.size;
+            });
+        }
+        
         console.log("removing temp files...")
         let fds=new Set();
         for (const [piece, fd] of Object.entries(this.fileToWrite)) {

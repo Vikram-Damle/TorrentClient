@@ -26,20 +26,21 @@ fileManager.init(torrent, (fm) =>{
 
 
 /* ToDo:
--bitfield file validation                       X
--save file selection
--peer reconnection
--Selective file download                        X
--end game                                       .
 -File parsing after download                    X
--peer protocol validation                       X
+-bitfield file validation                       X
 -piece validation                               X                       
--magnet link support by metadata extension
--http tracker support
+-Selective file download                        X
+-save file selection
 -nested directories                             X
 -remove temp files                              X
--corrupt file loop
+-end game                                       .
+-last piece block                               X
+-peer protocol validation                       X
 -max simultaneous download of a piece
 -cancel pieces if dled
+-corrupt file loop
+-http tracker support
+-peer reconnection
+-magnet link support by metadata extension
 */
 
