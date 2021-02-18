@@ -4,6 +4,7 @@ const Bitfield = require('./utils').Bitfield;
 const crypto=require('crypto');
 const config =require('./config');
 const cliProgress = require('cli-progress');
+const chalk = require('chalk');
 
 
 
@@ -16,7 +17,6 @@ var blockPerPiece;
 var fileManager;
 var has_initiated=false;
 var toDlCount=0;
-
 
 class Peer{
     constructor(ip,port){
@@ -38,6 +38,7 @@ class Piece{
         this.index=index;
         this.state=0;
         this.peers=new Array();
+        this.downloaders=0;
         this.progress=null;
     }
 }
@@ -64,6 +65,7 @@ module.exports.initDownload=(parsedTorrent, fm)=>{
     toDlCount=fileManager.toDl.count();
     console.log(completePieces + 'pieces have been completed!');
     //bitfield.print();
+
 }
 
 module.exports.addPeers=(peer_conns)=>{
@@ -162,28 +164,22 @@ function initiate(peer_conn){
             console.log("Received KEEP ALIVE from "+ peer.ip);
         }
         if(msg.id==0){
-            console.log("choked by "+peer.ip+" ============================= T-T");
-            peer.isChoking=true;
-            if(!interestedInterval)sendInterested(5000);
+            handleChoke(msg);
         }
-        if(msg.id==1){
+        else if(msg.id==1){
             handleUnchoke(msg)
         }
-
-        if(msg.id==2){
+        else if(msg.id==2){
             console.log("Received INTERESTED from "+ peer.ip);
             socket.write(messages.Unchoke());
         }
-
-        if(msg.id==4){
+        else if(msg.id==4){
             handleHave(msg);
         }
-
-        if(msg.id==5){
+        else if(msg.id==5){
             handleBitfield(msg);
         }
-        
-        if(msg.id==7){
+        else if(msg.id==7){
             handleBlock(msg);
         }
     }
@@ -217,12 +213,18 @@ function initiate(peer_conn){
 
     function handleBlock(msg){
         peer.completedBlocks++;
-        console.log(msg.index + ": "+ peer.completedBlocks + '/'  + blockPerPiece +' @ '+msg.begin);
+        console.log(msg.index + ":\t"+ peer.completedBlocks + '\t/\t'  + blockPerPiece +'\t@\t'+peer.ip);
         //pieces[msg.index].progress.update(peer.completedBlocks);
         msg.block.copy(peer.downloadingBlock,msg.begin);
 
+        if(pieces[msg.index].state == 2){
+            peer.isFree=true;
+            peer.downloading=-1;
+            selectAndDownload();
+        }
+
         //check if it is the last block of last piece
-        let lst = (msg.index=torrent.pieceCount-1) 
+        let lst = (msg.index==torrent.pieceCount-1) 
                 && peer.completedBlocks == Math.ceil((torrent.size % torrent.pieceLength)/config.BLOCKLENGTH);
 
         if(peer.completedBlocks==blockPerPiece || lst){
@@ -234,7 +236,7 @@ function initiate(peer_conn){
             
             if(pieceHash.equals(torrent.pieceHash[msg.index]) && pieces[msg.index].state!=2){
                 completePieces++;
-                console.log('Piece '+msg.index+' completed! from '+peer.ip)
+                console.log(chalk.bgGreenBright.black('Piece '+msg.index+' completed! from '+peer.ip));
                 console.log(completePieces +'/'+ toDlCount + ' Pieces completed!')
 
                 fileManager.writePiece(msg.index, peer.downloadingBlock);
@@ -242,11 +244,13 @@ function initiate(peer_conn){
 
                 bitfield.set(msg.index);
                 fileManager.updateBitfield(bitfield);
+
             }
 
             //bitfield.print();
             peer.isFree=true;
             peer.downloading=-1;
+
 
             // for(i=0;i<peer.pieces.length;i++){
             //     //console.log(peer.pieces[i].state==0,!peer.isChoking,peer.isFree);
@@ -300,10 +304,16 @@ function initiate(peer_conn){
     }
 
     function handleUnchoke(msg){
-        console.log("unchoked by "+peer.ip+" ============================= ^-^");
+        console.log(peer.ip + " : "+chalk.green("UNCHOKED ^-^"))
         peer.isChoking=false;
         // console.log(peer.downloading);
         selectAndDownload();
+    }
+
+    function handleChoke(msg){
+        console.log(peer.ip + " : "+chalk.red("CHOKED T-T"));
+        peer.isChoking=true;
+        if(!interestedInterval)sendInterested(5000);
     }
 
     function sendInterested(interval){
@@ -329,9 +339,9 @@ function initiate(peer_conn){
         if(peer.isChoking || !peer.isFree)return;
 
         if(peer.downloading==-1){
-            for(i=0;i<peer.pieces.length;i++){
-                requestPiece(selectPiece([0]));
-            }
+            
+            requestPiece(selectPiece([0]));
+            
             if(peer.isFree){
                 requestPiece(selectPiece([0,1]));
             }
@@ -348,6 +358,7 @@ function initiate(peer_conn){
         for(i=0;i<peer.pieces.length;i++){
             if(dlableStates.includes(peer.pieces[i].state)){
                 downloadable.push(peer.pieces[i]);
+                console.log(chalk.blue(peer.pieces[i].index + ":" +peer.pieces[i].peers.length))
             }
         }
         if(downloadable.length){

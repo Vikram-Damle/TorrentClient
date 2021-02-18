@@ -4,6 +4,7 @@ module.exports = {
     BLOCKLENGTH: Math.pow(2,14),
     DOWNLOADDIR: 'files/',
     BITFIELDDIR: 'files/',
-    TORRENTPATH: 'files/PN.torrent',
+    TORRENTPATH: 'files/sample.torrent',
     TRACKERTIMEOUT: 3000,
+    MAXSIMLPIECEDL:2,
 }
