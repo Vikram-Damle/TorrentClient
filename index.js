@@ -2,12 +2,12 @@ const fs= require('fs');
 const Buffer = require('buffer').Buffer;
 const torrentParser=require('./metainfoParser');
 const config=require('./config');
-const torrent = torrentParser.parse(fs.readFileSync(config.TORRENTPATH));
+const torrent = torrentParser.parse(fs.readFileSync(config.TORRENT_PATH));
 console.log(torrent);
 const tracker=require('./tracker');
 const downloader = require('./downloader');
 const fileManager = require('./fileManager');
-const downloadPath=config.DOWNLOADDIR + torrent.md5 + '.mtr';
+const downloadPath=config.DOWNLOAD_DIR + torrent.md5 + '.mtr';
 
 // if(!fs.existsSync(downloadPath)){
 //     fs.writeFileSync(downloadPath, Buffer.alloc(torrent.size),()=>{});
