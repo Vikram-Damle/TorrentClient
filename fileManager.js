@@ -41,7 +41,7 @@ class FileManager{
         if(!this.torrent.files){
             let data=Buffer.alloc(this.torrent.size);
             fs.readSync(this.fileToWrite[0],data,0,data.length,0);
-            fs.writeFileSync(config.DOWNLOADDIR + this.torrent.filename, data);
+            fs.writeFileSync(config.DOWNLOAD_DIR + this.torrent.filename, data);
         }
         else{
             let prefSize = 0;
@@ -60,9 +60,9 @@ class FileManager{
                     }
                     offset+=prefSize%torrent.pieceLength;
                     fs.readSync(this.fileToWrite[startPiece],data, 0, data.length, offset);
-                    //let data = fs.readFileSync(config.DOWNLOADDIR + torrent.filename + '/' + torrent.md5 + '0' +'.mtr');
-                    createSubDirs(config.DOWNLOADDIR + torrent.filename + '/' + file.path);
-                    fs.writeFileSync(config.DOWNLOADDIR + torrent.filename + '/' + file.path, data);
+                    //let data = fs.readFileSync(config.DOWNLOAD_DIR + torrent.filename + '/' + torrent.md5 + '0' +'.mtr');
+                    createSubDirs(config.DOWNLOAD_DIR + torrent.filename + '/' + file.path);
+                    fs.writeFileSync(config.DOWNLOAD_DIR + torrent.filename + '/' + file.path, data);
                     //ctr++;
                 }
                 prefSize+=file.size;
@@ -95,7 +95,7 @@ var paths = new Array();
 
 module.exports.init = (torrentToDl, callback)=>{
     torrent = torrentToDl;
-    let bitfieldPath = config.BITFIELDDIR;
+    let bitfieldPath = config.BIT_FIELD_DIR;
 
     if(torrent.files){
         bitfieldPath = bitfieldPath + torrent.filename + '/';
@@ -155,7 +155,7 @@ function selectFiles(callback){
 // declare an array to store the file references
 //create and/or open files here and store them in the array
 function createFiles(){
-    let dir=config.DOWNLOADDIR;
+    let dir=config.DOWNLOAD_DIR;
     if(torrent.files){
         dir = dir + torrent.filename + '/'; 
         if (!fs.existsSync(dir)){
