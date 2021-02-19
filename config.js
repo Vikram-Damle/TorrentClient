@@ -6,5 +6,5 @@ module.exports = {
     BITFIELDDIR: 'files/',
     TORRENTPATH: 'files/sample.torrent',
     TRACKERTIMEOUT: 3000,
-    MAXSIMLPIECEDL:2,
+    MAXUPLOADERS: 4,
 }

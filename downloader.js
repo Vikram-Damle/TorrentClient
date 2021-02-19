@@ -5,6 +5,7 @@ const crypto=require('crypto');
 const config =require('./config');
 const cliProgress = require('cli-progress');
 const chalk = require('chalk');
+const performance = require('perf_hooks')
 
 
 
@@ -17,6 +18,9 @@ var blockPerPiece;
 var fileManager;
 var has_initiated=false;
 var toDlCount=0;
+
+let start;
+let end;
 
 class Peer{
     constructor(ip,port){
@@ -40,10 +44,12 @@ class Piece{
         this.peers=new Array();
         this.downloaders=0;
         this.progress=null;
+        this.currDownloaders=0;
     }
 }
 
 module.exports.initDownload=(parsedTorrent, fm)=>{
+    start = Date.now();
     has_initiated=true;
     fileManager=fm;
     torrent=parsedTorrent;
@@ -193,6 +199,7 @@ function initiate(peer_conn){
         peer.isFree=false;
         piece.state=1;
         let blockSize=config.BLOCKLENGTH;
+        piece.currDownloaders++;
         if(piece.index != peer.downloading){
             peer.downloading = piece.index;
             if(piece.index != torrent.pieceCount - 1)
@@ -208,10 +215,12 @@ function initiate(peer_conn){
             len=torrent.size%config.BLOCKLENGTH;
 
         console.log('requesting piece '+piece.index + ' from ' + peer.ip);
+        console.log('Piece currently being downloaded by: ', piece.currDownloaders, ' peer(s)');
         socket.write(messages.Request(piece.index,peer.completedBlocks,len));
     }
 
     function handleBlock(msg){
+        // TODO: Decrement on last block recieve.
         peer.completedBlocks++;
         console.log(msg.index + ":\t"+ peer.completedBlocks + '\t/\t'  + blockPerPiece +'\t@\t'+peer.ip);
         //pieces[msg.index].progress.update(peer.completedBlocks);
@@ -236,6 +245,7 @@ function initiate(peer_conn){
             
             if(pieceHash.equals(torrent.pieceHash[msg.index]) && pieces[msg.index].state!=2){
                 completePieces++;
+                pieces[peer.downloading].currDownloaders--;
                 console.log(chalk.bgGreenBright.black('Piece '+msg.index+' completed! from '+peer.ip));
                 console.log(completePieces +'/'+ toDlCount + ' Pieces completed!')
 
@@ -269,6 +279,8 @@ function initiate(peer_conn){
             }
             if(complete){
                 console.log("=============================File Downloaded=================================");
+                end = Date.now();
+                console.log(end-start);
                 fileManager.parseFiles();
                 process.exit();
             }
@@ -313,6 +325,10 @@ function initiate(peer_conn){
     function handleChoke(msg){
         console.log(peer.ip + " : "+chalk.red("CHOKED T-T"));
         peer.isChoking=true;
+        // TODO: Check downloading property, check piece being downloaded and decrement
+        if(peer.downloading > -1) {
+            pieces[peer.downloading].currDownloaders--;
+        }
         if(!interestedInterval)sendInterested(5000);
     }
 
@@ -356,7 +372,7 @@ function initiate(peer_conn){
     function selectPiece(dlableStates){
         let downloadable = new Array();
         for(i=0;i<peer.pieces.length;i++){
-            if(dlableStates.includes(peer.pieces[i].state)){
+            if(dlableStates.includes(peer.pieces[i].state) && peer.pieces[i].currDownloaders < config.MAXUPLOADERS){
                 downloadable.push(peer.pieces[i]);
                 console.log(chalk.blue(peer.pieces[i].index + ":" +peer.pieces[i].peers.length))
             }
