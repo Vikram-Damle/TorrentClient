@@ -4,7 +4,7 @@ module.exports = {
     BLOCK_LENGTH: Math.pow(2,14),
     DOWNLOAD_DIR: 'files/',
     BIT_FIELD_DIR: 'files/',
-    TORRENT_PATH: 'files/sample.torrent',
+    TORRENT_PATH: 'files/monogatari.torrent',
     TRACKER_TIMEOUT: 3000,
     MAX_PIECE_SEEDS: 3,
 }
