@@ -36,11 +36,12 @@ fileManager.init(torrent, (fm) =>{
 -end game                                       .
 -last piece block                               X
 -peer protocol validation                       X
--max simultaneous download of a piece
--cancel pieces if dled
--corrupt file loop
+-max simultaneous downloads of a piece           X
+-cancel pieces if dled                          X
+-corrupt file loop                              .  blacklisting corrupt pieces
 -http tracker support
 -peer reconnection
 -magnet link support by metadata extension
+-input validation for file selection            .  validating input during file selection
 */
 
