@@ -83,3 +83,36 @@ module.exports.Bitfield = class Bitfield{
 }
 
 
+const exec = require('child_process').exec;
+const http = require('http');
+
+module.exports.launchUI = function(){
+
+    fs.readFile('./ui.html', function (err, html) {
+        if (err) {
+            throw err; 
+        }       
+        http.createServer(function(request, response) {  
+            response.writeHeader(200, {"Content-Type": "text/html"});  
+            response.write(html);  
+            response.end();  
+        }).listen(9495);
+    });
+
+    exec(getStartCommand()+' '+'http://localhost:9495/');
+
+}
+
+module.exports.openFolder = function(path){
+    path = path.replace('/','\\')
+    exec(getStartCommand()+' '+path);
+}
+
+function getStartCommand() {
+    switch (process.platform) { 
+    case 'darwin' : return 'open';
+    case 'win32' : return 'start';
+    case 'win64' : return 'start';
+    default : return 'xdg-open';
+    }
+}

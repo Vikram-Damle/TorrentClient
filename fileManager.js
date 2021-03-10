@@ -81,7 +81,7 @@ class FileManager{
             fs.unlinkSync(path);
         })
         console.log("Finished!")
-        process.exit();
+        //process.exit();
     };
 };
 
@@ -92,11 +92,12 @@ var bfFile;
 var bitfield;
 var fileToWrite = new Object();
 var paths = new Array();
+var ws;
 
-module.exports.init = (torrentToDl, callback)=>{
+module.exports.init = (torrentToDl, websocket, callback)=>{
     torrent = torrentToDl;
     let bitfieldPath = config.BIT_FIELD_DIR;
-
+    ws=websocket;
     if(torrent.files){
         bitfieldPath = bitfieldPath + torrent.filename + '/';
         if(!fs.existsSync(bitfieldPath)){
@@ -115,7 +116,15 @@ module.exports.init = (torrentToDl, callback)=>{
 
     bfFile=openOverwrite(bitfieldPath);
     paths.push(bitfieldPath);
-    selectFiles(callback);
+    //selectFiles(callback);
+    printFiles(torrent);
+    ws.on('message',(msg)=>{
+        let data = JSON.parse(msg);
+        if(data.type=='start'){
+            handleSelection(data.data,callback);
+        }
+
+    })
 }
 
 function selectFiles(callback){
@@ -217,14 +226,53 @@ function createSubDirs(path){
 }
 
 function printFiles(torrent){
-    let mxNameLen=0;
-    torrent.files.forEach((ele=>{mxNameLen=Math.max(mxNameLen,ele.path.length);}));
-    mxNameLen = Math.ceil(mxNameLen/8)*8;
-    torrent.files.forEach((ele,ind) => {
-        let name = (ind+1) + '. ' + ele.path;
-        //adding appropriate padding
-        let padding='';
-        for(var i=0;i<Math.ceil((mxNameLen-name.length)/8);i++)padding+='\t';
-        console.log( name + padding + '\t' + (ele.size/1048576).toFixed(2) + 'MB');
-    });
+    let filedets = [];
+    if(torrent.files){
+        let mxNameLen=0;
+        torrent.files.forEach((ele=>{mxNameLen=Math.max(mxNameLen,ele.path.length);}));
+        mxNameLen = Math.ceil(mxNameLen/8)*8;
+        torrent.files.forEach((ele,ind) => {
+            let name = (ind+1) + '. ' + ele.path;
+            //adding appropriate padding
+            let padding='';
+            for(var i=0;i<Math.ceil((mxNameLen-name.length)/8);i++)padding+='\t';
+            console.log( name + padding + '\t' + (ele.size/1048576).toFixed(2) + 'MB');
+            filedets.push({name:ele.path,size:(ele.size/1048576).toFixed(2) + 'MB'});
+        });
+    }
+    else{
+        filedets.push({name:torrent.filename,size:(torrent.size/1048576).toFixed(2) + 'MB'})
+    }
+    ws.send(JSON.stringify({type:'file-list',data:filedets}));
+}
+
+function handleSelection(inp, callback){
+    if(torrent.files){
+        let sel;
+        if(inp=='*') sel = Array.from({length: torrent.files.length}, (_, i) => i + 1);
+        else sel = inp.trim().split(' ').map((ele)=>parseInt(ele));
+        let prefSum = new Array();
+        prefSum.push(0);
+        torrent.files.forEach((ele,ind)=>{
+            prefSum[ind+1]=prefSum[ind] + ele.size;
+        })
+        toDl= new Set();
+        sel.forEach((ele)=>{
+            let beg = Math.floor(prefSum[ele-1]/torrent.pieceLength);
+            let end = Math.floor((prefSum[ele-1]+torrent.files[ele-1].size)/torrent.pieceLength);
+            for( var i = beg; i<=end; i++)toDl.add(i+1);
+        })
+        let bf = Bitfield.fromArray(toDl,torrent.pieceCount);
+        let filesToDl = Bitfield.fromArray(sel,torrent.files.length);
+        toDl=bf;
+        createFiles();
+        let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, filesToDl, paths);
+        callback(fm);
+    }else{
+        toDl = new Bitfield(torrent.pieceCount);
+        for(let i=0; i < toDl.length; i++)toDl.set(i);
+        createFiles();
+        let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, null, paths);
+        callback(fm);
+    }
 }

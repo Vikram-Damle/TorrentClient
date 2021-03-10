@@ -2,28 +2,60 @@ const fs= require('fs');
 const Buffer = require('buffer').Buffer;
 const torrentParser=require('./metainfoParser');
 const config=require('./config');
-const torrent = torrentParser.parse(fs.readFileSync(config.TORRENT_PATH));
-console.log(torrent);
+const utils = require('./utils')
+const WebSocket=require('ws');
+
 const tracker=require('./tracker');
 const downloader = require('./downloader');
 const fileManager = require('./fileManager');
-const downloadPath=config.DOWNLOAD_DIR + torrent.md5 + '.mtr';
 
-// if(!fs.existsSync(downloadPath)){
-//     fs.writeFileSync(downloadPath, Buffer.alloc(torrent.size),()=>{});
-// }else if(fs.readFileSync(downloadPath).length!=torrent.size){
-//     fs.writeFileSync(downloadPath, Buffer.alloc(torrent.size),()=>{});
-// }
+const wss= new WebSocket.Server({port:9494});
+let ws=null;
+let expectFile=false;
+let torrentData=null;
 
-fileManager.init(torrent, (fm) =>{
+wss.on('connection', (connws)=>{
+    ws=connws;
+    ws.send(JSON.stringify({type:'connected',data:'connection successful!'}));
+    ws.on('message', (msg)=>{
+        if(expectFile){
+            torrentData=msg;
+            expectFile=false;
+            return;
+        }
+        let data = JSON.parse(msg);
+        if(data.type == 'torrent-file'){
+            expectFile=true;
+            ws.send(JSON.stringify({type:'file-ack'}))
+        }
+        if(data.type == 'init'){
+            if(!torrentData)return;
+            const torrent = torrentParser.parse(torrentData);
+            console.log(torrent);
 
-    downloader.initDownload(torrent, fm);
-    tracker.getPeers(torrent,(peers)=>{
-        console.log(peers);
-        downloader.addPeers(peers);
-    })
-});
+            fileManager.init(torrent, ws, (fm) =>{
+                downloader.initDownload(torrent, fm, ws);
+                tracker.getPeers(torrent,(peers)=>{
+                    console.log(peers);
+                    downloader.addPeers(peers);
+                })
+            });
+        }
+        if(data.type == 'show-dl'){
+            utils.openFolder(config.DOWNLOAD_DIR);
+        }
+        if(data.type == 'exit'){
+            console.log('Client closed! Exiting...');
+            process.exit();
+        }
+    });
+    ws.on('error',(e)=>{
+        console.log('Client closed! Exiting...');
+        process.exit();
+    });
+})
 
+utils.launchUI();
 
 /* ToDo:
 -File parsing after download                    X
