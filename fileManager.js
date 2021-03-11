@@ -93,38 +93,17 @@ var bitfield;
 var fileToWrite = new Object();
 var paths = new Array();
 var ws;
+var callback;
 
-module.exports.init = (torrentToDl, websocket, callback)=>{
+module.exports.init = (torrentToDl, cb)=>{
     torrent = torrentToDl;
-    let bitfieldPath = config.BIT_FIELD_DIR;
-    ws=websocket;
-    if(torrent.files){
-        bitfieldPath = bitfieldPath + torrent.filename + '/';
-        if(!fs.existsSync(bitfieldPath)){
-            fs.mkdirSync(bitfieldPath);
-        }
-    }
-    
-    bitfieldPath = bitfieldPath + torrent.md5 + '.bfd'
-
-    if(fs.existsSync(bitfieldPath)){
-        bitfield= Bitfield.fromBuffer(fs.readFileSync(bitfieldPath),torrent.pieceCount);
-    }else{
-        bitfield= new Bitfield(torrent.pieceCount);
-        fs.writeFileSync(bitfieldPath,bitfield.buffer);
-    }
-
-    bfFile=openOverwrite(bitfieldPath);
-    paths.push(bitfieldPath);
     //selectFiles(callback);
     printFiles(torrent);
-    ws.on('message',(msg)=>{
-        let data = JSON.parse(msg);
-        if(data.type=='start'){
-            handleSelection(data.data,callback);
-        }
+    callback=cb;
+}
 
-    })
+module.exports.setWs = (websocket)=>{
+    ws=websocket;
 }
 
 function selectFiles(callback){
@@ -207,6 +186,28 @@ function createFiles(){
 
 };
 
+function createBitfieldFile(){
+    let bitfieldPath = config.BIT_FIELD_DIR;
+    if(torrent.files){
+        bitfieldPath = bitfieldPath + torrent.filename + '/';
+        if(!fs.existsSync(bitfieldPath)){
+            fs.mkdirSync(bitfieldPath);
+        }
+    }
+    
+    bitfieldPath = bitfieldPath + torrent.md5 + '.bfd'
+
+    if(fs.existsSync(bitfieldPath)){
+        bitfield= Bitfield.fromBuffer(fs.readFileSync(bitfieldPath),torrent.pieceCount);
+    }else{
+        bitfield= new Bitfield(torrent.pieceCount);
+        fs.writeFileSync(bitfieldPath,bitfield.buffer);
+    }
+
+    bfFile=openOverwrite(bitfieldPath);
+    paths.push(bitfieldPath);
+}
+
 
 
 function openOverwrite(path){
@@ -246,7 +247,8 @@ function printFiles(torrent){
     ws.send(JSON.stringify({type:'file-list',data:filedets}));
 }
 
-function handleSelection(inp, callback){
+module.exports.handelSelection = function handleSelection(inp){
+    createBitfieldFile();
     if(torrent.files){
         let sel;
         if(inp=='*') sel = Array.from({length: torrent.files.length}, (_, i) => i + 1);

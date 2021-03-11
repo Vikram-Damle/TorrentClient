@@ -17,6 +17,8 @@ let torrentData=null;
 wss.on('connection', (connws)=>{
     ws=connws;
     ws.send(JSON.stringify({type:'connected',data:'connection successful!'}));
+    fileManager.setWs(ws);
+
     ws.on('message', (msg)=>{
         if(expectFile){
             torrentData=msg;
@@ -26,14 +28,13 @@ wss.on('connection', (connws)=>{
         let data = JSON.parse(msg);
         if(data.type == 'torrent-file'){
             expectFile=true;
-            ws.send(JSON.stringify({type:'file-ack'}))
         }
         if(data.type == 'init'){
             if(!torrentData)return;
             const torrent = torrentParser.parse(torrentData);
             console.log(torrent);
 
-            fileManager.init(torrent, ws, (fm) =>{
+            fileManager.init(torrent, (fm) =>{
                 downloader.initDownload(torrent, fm, ws);
                 tracker.getPeers(torrent,(peers)=>{
                     console.log(peers);
@@ -47,6 +48,9 @@ wss.on('connection', (connws)=>{
         if(data.type == 'exit'){
             console.log('Client closed! Exiting...');
             process.exit();
+        }
+        if(data.type == 'start'){
+            fileManager.handelSelection(data.data);
         }
     });
     ws.on('error',(e)=>{

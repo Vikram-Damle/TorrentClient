@@ -65,12 +65,14 @@
     ws.onmessage = function(e){
         let data = JSON.parse(e.data);
         if(data.type=='file-list'){
+            fileList.innerHTML='';
             data.data.forEach((file,ind) => {
                 var temp=document.getElementById('file-det-temp')
                 var entry = temp.content.cloneNode(true);
                 entry.querySelector('.file-name').textContent=file.name;
                 entry.querySelector('.file-size').textContent=file.size;
                 entry.querySelector('.file-checkbox').setAttribute('data-id',ind+1);
+                entry.querySelector('.file-checkbox').onclick = toggleStartBtn;
                 fileList.appendChild(entry);
             });
         }
@@ -140,8 +142,16 @@
             tempBuffer = rawData;
         }
         reader.readAsArrayBuffer(file);
-        document.getElementById('start-btn').style.display='block';
-        document.getElementById('select-torrent').style.display='none';
+        document.getElementById('select-torrent').style.display='none'
+        
+    }
+
+    function toggleStartBtn(){
+        let flag = false;
+        [].forEach.call(document.getElementsByClassName('file-checkbox'),(ele)=>{
+            if(ele.checked)flag=true;
+        });
+        document.getElementById('start-btn').style.display=(flag)?'block':'none';
     }
 </script>
 </html>
