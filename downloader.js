@@ -19,7 +19,8 @@ var has_initiated=false;
 var toDlCount=0;
 var ws=null;
 var totalBlocksDled=0;
-const LOG_MODE=2;
+var totalBlocks=0;
+const LOG_MODE=0;
 
 let start;
 let end;
@@ -36,6 +37,7 @@ class Peer{
         this.pieces=new Array();
         this.isChoking=true;
         this.corruptPieces= new Array();
+        this.status=0;
     }
 }
 
@@ -59,7 +61,7 @@ module.exports.initDownload=(parsedTorrent, fm, connws)=>{
     torrent=parsedTorrent;
     pieces=new Array();
     peers = new Array();
-    blockPerPiece = torrent.pieceLength/config.BLOCK_LENGTH;
+    blockPerPiece = torrent.pieceLength/config.BLOCK_LENGTH;    
     bitfield = fileManager.bitfield;
     ws=connws;
 
@@ -77,6 +79,10 @@ module.exports.initDownload=(parsedTorrent, fm, connws)=>{
         /* Updating statuses for pieces that are not required for requested files*/
         if(!fileManager.toDl.get(i)){
             pieces[i].state=-1;
+        }else{
+            totalBlocks+=blockPerPiece;
+            if(i==torrent.pieceCount-1 && torrent.size%torrent.pieceLength!=0)
+                totalBlocks-=Math.floor((torrent.pieceLength - torrent.size%torrent.pieceLength)/config.BLOCK_LENGTH);
         }
     }
     toDlCount=fileManager.toDl.count();
@@ -115,6 +121,7 @@ function initiate(peer_conn){
         log('connecting to '+peer.ip)
         socket.connect(peer.port,peer.ip,()=>{
             peer.socket=socket;
+            peer.status=1;
             log(peer.ip+' connected!');
             socket.write(messages.Handshake(torrent));
         });
@@ -130,13 +137,13 @@ function initiate(peer_conn){
     socket.on('close',()=>{
         if(interestedInterval)clearInterval(interestedInterval);
         if(keepAliveIntv)clearInterval(keepAliveIntv);
-        log(peer.ip + " closed the connection...Was downloading piece: " + peer.downloading);
+        log("Connection Closed "+peer.ip);
         if(peer.downloading!=-1){
             let dp=pieces[peer.downloading];
             dp.state=0;
         }
         //connTimeout=setTimeout(connect,5000);
-
+        peer.status=0;
     });
 
     socket.on('error',(error)=>{log(peer.ip ,"ERROR: " + error)});
@@ -240,7 +247,7 @@ function initiate(peer_conn){
             len=torrent.size%config.BLOCK_LENGTH;
 
         log('requesting piece '+piece.index + ' from ' + peer.ip);
-        log('Piece currently being downloaded by: ', piece.currDownloaders, ' peer(s)');
+        log('Piece currently being downloaded by: '+ piece.currDownloaders+ ' peer(s)');
         socket.write(messages.Request(piece.index,peer.completedBlocks,len));
     }
 
@@ -250,7 +257,7 @@ function initiate(peer_conn){
             totalBlocksDled++;
             pieces[msg.index].maxBlocksDled = peer.completedBlocks;
             ws.send(JSON.stringify({type:'update-progress',
-                                    data:{completed: totalBlocksDled, total:toDlCount*blockPerPiece}}));
+                                    data:{completed: totalBlocksDled, total:totalBlocks}}));
         }
         log(msg.index + ":\t"+ peer.completedBlocks + '\t/\t'  + blockPerPiece +'\t@\t'+peer.ip);
         //pieces[msg.index].progress.update(peer.completedBlocks);
@@ -314,8 +321,6 @@ function initiate(peer_conn){
             //     if(peers[i].socket)peers[i].socket.write(messages.Have(msg.index));
             // }
 
-            /* Get new piece */
-            selectAndDownload();
 
             /* Check if the download is complete*/
             let complete=true;
@@ -328,7 +333,18 @@ function initiate(peer_conn){
                 end = Date.now();
                 log('Time taken: ' + end-start + ' ms');
                 fileManager.parseFiles();
+                peers.forEach((ele)=>{
+                    if(ele.status==1)ele.socket.end(()=>{log("Connection Ended " + peer.ip + " : Download complete")});
+                    
+                })
+                for(i=0;i<torrent.pieceCount;i++){
+                    if(pieces[i].state==2)console.log(pieces[i].maxBlocksDled);
+                }
+                console.log(totalBlocksDled, totalBlocks);
                 //process.exit();
+            }else{
+                /* Get new piece */
+                selectAndDownload();
             }
 
         }else{
@@ -413,7 +429,7 @@ function initiate(peer_conn){
                 requestPiece(selectPiece([0,1]));
             }
             if(peer.isFree){
-                socket.end(()=>{log("Ended connection " + peer.ip + " : No downloadable pieces left")})
+                socket.end(()=>{log("Connection Ended " + peer.ip + " : No downloadable pieces left")});
             }
         }
         else requestPiece(pieces[peer.downloading]);

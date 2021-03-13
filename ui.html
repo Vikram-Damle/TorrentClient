@@ -80,7 +80,7 @@
             console.log(data.data);
         }
         else if(data.type=='update-progress'){
-            
+            console.log(data.data.total);
             let perc = (100*data.data.completed/data.data.total).toFixed(1);
             document.getElementById('progress-curr').style.width = perc+'%'; 
             document.getElementById('progress-perc').textContent = perc+'%'; 
@@ -104,6 +104,7 @@
             
         }
         else if(data.type=='finished'){
+            alert('Download Complete!');
             document.getElementById('show-dl').style.display = 'block'; 
             document.getElementById('show-dl').onclick=(e)=>{
                 ws.send(JSON.stringify({type:'show-dl'}));
@@ -125,6 +126,7 @@
         document.getElementById('start-btn').style.display='none';
         document.getElementById('progress-bar').style.display='block';
         document.getElementById('progress-det').style.display='block';
+        document.getElementById('select-torrent').style.display='none'
         ws.send(JSON.stringify({type:'start',data:toDl}));
     }
 
@@ -142,7 +144,7 @@
             tempBuffer = rawData;
         }
         reader.readAsArrayBuffer(file);
-        document.getElementById('select-torrent').style.display='none'
+        
         
     }
 

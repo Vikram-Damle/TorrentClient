@@ -69,7 +69,7 @@ class FileManager{
             });
         }
         
-        console.log("removing temp files...")
+        console.log("removing temp files...");
         let fds=new Set();
         for (const [piece, fd] of Object.entries(this.fileToWrite)) {
             fds.add(fd);
@@ -77,10 +77,12 @@ class FileManager{
         fds.forEach((fd)=>{
             fs.closeSync(fd);
         });
+        fs.closeSync(this.bfFile);
         this.paths.forEach((path,ind)=>{
+            console.log('Deleting '+path);
             fs.unlinkSync(path);
         })
-        console.log("Finished!")
+        console.log("Finished!");
         //process.exit();
     };
 };

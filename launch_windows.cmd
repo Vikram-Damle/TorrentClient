@@ -1,2 +1,2 @@
 @echo off
-START /MIN node index.js
+powershell "node index.js | tee log.txt"

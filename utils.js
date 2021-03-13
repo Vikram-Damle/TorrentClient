@@ -82,6 +82,12 @@ module.exports.Bitfield = class Bitfield{
     }
 }
 
+module.exports.writeBigUInt64BE = function writeBigUInt64BE(buf,val,offset=0){
+    let p=BigInt(Math.pow(16,8));
+    buf.writeUInt32BE(Math.floor(Number(val/p)),offset);
+    buf.writeUInt32BE(Number(val%p), offset+4);
+}
+
 
 const exec = require('child_process').exec;
 const http = require('http');

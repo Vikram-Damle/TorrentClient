@@ -80,11 +80,11 @@ function buildAnnounceReq(connID,torrent,port=config.PORT){
     //peerID 20 bytes
     utils.generateId().copy(buf,36);
     //downloaded 64bits (0 for now)
-    buf.writeBigUInt64BE(0n,56);
+    utils.writeBigUInt64BE(buf,0n,56);
     //left 64 bits (size for now)
-    buf.writeBigUInt64BE(BigInt(torrent.size),64);
+    utils.writeBigUInt64BE(buf,BigInt(torrent.size),64);
     //uploaded 64 bits (0 for now)
-    buf.writeBigUInt64BE(0n,72);
+    utils.writeBigUInt64BE(buf,0n,72);
     //event 32 bits (0:none)
     buf.writeUInt32BE(0,80);
     //IP address 32bit (0:default)

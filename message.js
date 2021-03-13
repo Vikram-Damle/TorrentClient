@@ -8,7 +8,7 @@ module.exports.Handshake=(torrent)=>{
     //protocol string 19bytes
     buf.write('BitTorrent protocol',1,'utf8');
     //reserved 8bytes
-    buf.writeBigUInt64BE(0n,20);
+    utils.writeBigUInt64BE(buf,0n,20);
     //infoHash 20bytes
     torrent.infoHash.copy(buf,28);
     //peerID 20bytes
