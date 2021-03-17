@@ -45,19 +45,13 @@ module.exports.getPeers=(torrent,exp_callback)=>{
 
     function sendUdpReq(message, rawUrl, callback=()=>{}){
         const url = urlParse(rawUrl);
-        console.log(message, rawUrl);
         if(url.protocol=='udp:')socket.send(message, 0, message.length, url.port, url.hostname, callback);
     }
-
-    // socket.on('listening', () => {
-    //     const address = socket.address();
-    //     console.log(`listening to ${address.address}:${address.port}`);
-    //   });
 }
 
 
 
-//refer to http://www.bittorrent.org/beps/bep_0015.html#connect
+/* refer to http://www.bittorrent.org/beps/bep_0015.html#connect */
 function buildConnReq(){
     const buf = Buffer.alloc(16);
     buf.writeUInt32BE(0x417, 0);
@@ -66,7 +60,7 @@ function buildConnReq(){
     crypto.randomBytes(4).copy(buf,12);
     return buf;
 }
-//refer to http://www.bittorrent.org/beps/bep_0015.html#announce
+/* refer to http://www.bittorrent.org/beps/bep_0015.html#announce */
 function buildAnnounceReq(connID,torrent,port=config.PORT){
     const buf = Buffer.alloc(98);
     //connection ID 64bit
