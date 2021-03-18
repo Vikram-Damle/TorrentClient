@@ -3,7 +3,6 @@ const crypto=require('crypto');
 
 module.exports.parse=(torrentFile)=>{
     const torrent = bencode.decode(torrentFile);
-    console.log(torrent);
     let res= new Object();
     res.announce=torrent.announce.toString('utf8');
     res.announceList=new Array();
@@ -11,12 +10,10 @@ module.exports.parse=(torrentFile)=>{
         res.announceList.push(element.toString('utf8'));
     });
     if(torrent['created by'])res.created_by=torrent['created by'].toString('utf8');
-    //seconds passed since the UNIX epoch
+    /* seconds passed since the UNIX epoch */
     res.creation_date=torrent['creation date'];
-    //res.encoding=torrent.encoding.toString('utf8');
     const info = bencode.encode(torrent.info);
     res.infoHash = crypto.createHash('sha1').update(info).digest();
-    console.log('infoHash' , res.infoHash)
     const size=torrent.info.files ?
                     torrent.info.files.map(file => file.length).reduce((a, b) => a + b) :
                     torrent.info.length;

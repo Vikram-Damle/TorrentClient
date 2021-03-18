@@ -32,7 +32,6 @@ wss.on('connection', (connws)=>{
         if(data.type == 'init'){
             if(!torrentData)return;
             const torrent = torrentParser.parse(torrentData);
-            console.log(torrent);
 
             fileManager.init(torrent, (fm) =>{
                 downloader.initDownload(torrent, fm, ws);
@@ -72,12 +71,12 @@ utils.launchUI();
 -end game                                       .
 -last piece block                               X
 -peer protocol validation                       X
--max simultaneous downloads of a piece           X
+-max simultaneous downloads of a piece          X
 -cancel pieces if dled                          X
--corrupt file loop                              .  blacklisting corrupt pieces
+-corrupt file loop                              X
 -http tracker support
 -peer reconnection
 -magnet link support by metadata extension
--input validation for file selection            .  validating input during file selection
+-input validation for file selection            
 */
 

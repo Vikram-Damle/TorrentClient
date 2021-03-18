@@ -20,6 +20,7 @@ var toDlCount=0;
 var ws=null;
 var totalBlocksDled=0;
 var totalBlocks=0;
+/* 0 = log in terminal, 1 = log in browser inspector */
 const LOG_MODE=0;
 
 let start;
@@ -43,7 +44,7 @@ class Peer{
 
 class Piece{
     constructor(index){
-        //-1:doNotDownload, 0:none, 1:requested, 2:completed
+        /* -1:doNotDownload, 0:none, 1:requested, 2:completed */
         this.index=index;
         this.state=0;
         this.peers=new Array();
@@ -87,7 +88,6 @@ module.exports.initDownload=(parsedTorrent, fm, connws)=>{
     }
     toDlCount=fileManager.toDl.count();
     log(completePieces + 'pieces have been completed!');
-    //bitfield.print();
 
 }
 
@@ -105,11 +105,7 @@ function initiate(peer_conn){
     const peer = new Peer(peer_conn.ip,peer_conn.port);
     peers.push(peer);
 
-    /* Initially setting all pieces as uncorrupted pieces*/
-    // Might need to find a better place for this
-
     const socket = new net.Socket();
-
 
     let interestedInterval=false;
     let keepAliveIntv=false;
@@ -142,7 +138,6 @@ function initiate(peer_conn){
             let dp=pieces[peer.downloading];
             dp.state=0;
         }
-        //connTimeout=setTimeout(connect,5000);
         peer.status=0;
     });
 
@@ -152,8 +147,8 @@ function initiate(peer_conn){
         let buf= Buffer.alloc(0);
         let handshake = true;
     
-        //for handshake len = len(pstr) + 49
-        //for other messages length is stored in first 4 bytes
+        /* for handshake len = len(pstr) + 49 */
+        /* for other messages length is stored in first 4 bytes */
         const msgLen=()=>handshake? buf.readUInt8(0) + 49 : buf.readUInt32BE(0) + 4;
     
         socket.on('data', (data)=>{
@@ -161,16 +156,14 @@ function initiate(peer_conn){
             while(buf.length>=4 && buf.length>=msgLen()){
                 callback(buf.slice(0,msgLen()));
                 buf = buf.slice(msgLen());
-                //since only the first message will be a handshake
+                /* since only the first message will be a handshake */
                 handshake=false;
             }
         })
     }
 
     function handleHandshake(data){
-        log("Recieved Handshake!");
         let msg=messages.parseHandshake(data);
-        log(msg);
         if(msg.pstr!='BitTorrent protocol'){  
             socket.end(()=>{log(peer.ip +": Protocol Mismatch. Connection closed.");})
         }
@@ -180,9 +173,8 @@ function initiate(peer_conn){
         else{
             sendInterested(5000);
             socket.write(messages.Unchoke());
-            //socket.write(messages.Bitfield(bitfield.buffer))
     
-            //Send KeepAlive every 2 minutes
+            /* Send KeepAlive every 2 minutes */
             keepAlive(60000);
         }
     }
@@ -212,12 +204,7 @@ function initiate(peer_conn){
         }
     }
 
-
     function requestPiece(piece){
-        // if(piece.index>1)return;
-        // piece.progress = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-        // piece.progress.start(blockPerPiece,0);
-
         /* Handles null return */
         if(!piece)return;
         /* Set peer and piece status to downloading */
@@ -260,7 +247,6 @@ function initiate(peer_conn){
                                     data:{completed: totalBlocksDled, total:totalBlocks}}));
         }
         log(msg.index + ":\t"+ peer.completedBlocks + '\t/\t'  + blockPerPiece +'\t@\t'+peer.ip);
-        //pieces[msg.index].progress.update(peer.completedBlocks);
         msg.block.copy(peer.downloadingBlock,msg.begin);
 
         /* If this piece has already been downloaded by some other peer, then move on to new piece*/
@@ -279,8 +265,6 @@ function initiate(peer_conn){
             
             /* generate piece hash */
             let pieceHash=crypto.createHash('sha1').update(peer.downloadingBlock).digest();
-            log(pieceHash);
-            log(torrent.pieceHash[msg.index]);
             pieces[peer.downloading].currDownloaders--;
             
             /* If the piece hash matches expected hash */
@@ -288,9 +272,6 @@ function initiate(peer_conn){
                 completePieces++;
                 log(chalk.bgGreenBright.black('Piece '+msg.index+' completed! from '+peer.ip));
                 log(completePieces +'/'+ toDlCount + ' Pieces completed!')
-
-                /* Mark the piece as uncorrupted (useful if piece was marked as corrupted, no-op if piece wasn't) */
-                // peer.corruptPieces[msg.index] = 0;
 
                 fileManager.writePiece(msg.index, peer.downloadingBlock);
                 pieces[msg.index].state=2;
@@ -304,23 +285,10 @@ function initiate(peer_conn){
                 peer.corruptPieces.push(pieces[msg.index]);
             }
 
-            //bitfield.print();
 
             /* Reset Peer status */
             peer.isFree=true;
             peer.downloading=-1;
-
-
-            // for(i=0;i<peer.pieces.length;i++){
-            //     //log(peer.pieces[i].state==0,!peer.isChoking,peer.isFree);
-            //     if(peer.pieces[i].state==0 && !peer.isChoking && peer.isFree){
-            //         requestPiece(peer.pieces[i]);
-            //     }
-            // }
-            // for(i=0;i<peers.length;i++){
-            //     if(peers[i].socket)peers[i].socket.write(messages.Have(msg.index));
-            // }
-
 
             /* Check if the download is complete*/
             let complete=true;
@@ -341,7 +309,6 @@ function initiate(peer_conn){
                     if(pieces[i].state==2)console.log(pieces[i].maxBlocksDled);
                 }
                 console.log(totalBlocksDled, totalBlocks);
-                //process.exit();
             }else{
                 /* Get new piece */
                 selectAndDownload();
@@ -380,7 +347,6 @@ function initiate(peer_conn){
     function handleUnchoke(msg){
         log(peer.ip + " : "+chalk.green("UNCHOKED ^-^"))
         peer.isChoking=false;
-        // log(peer.downloading);
         selectAndDownload();
     }
 
@@ -447,7 +413,7 @@ function initiate(peer_conn){
         for(i=0;i<peer.pieces.length;i++){
             if(dlableStates.includes(peer.pieces[i].state) && peer.pieces[i].currDownloaders < config.MAX_PIECE_SEEDS){
                 downloadable.push(peer.pieces[i]);
-                log(chalk.blue(peer.pieces[i].index + ":" +peer.pieces[i].peers.length))
+                // log(chalk.blue(peer.pieces[i].index + ":" +peer.pieces[i].peers.length))
             }
         }
         /**
