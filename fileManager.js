@@ -127,14 +127,17 @@ function createFiles(fileBitField){
         prevSum = [0];
         torrent.files.forEach((file, index) => {
             prevSum[index+1] = prevSum[index] + file.size;
+            const path = dir + torrent.md5 + '_' + index + '.mtr';
 
             if(!fileBitField.get(index)) {
+                if(fs.existsSync(path)) {
+                    fs.unlinkSync(path)
+                }
                 return;
             }
             
-            const path = dir + torrent.md5 + '_' + index + '.mtr';
             if(!fs.existsSync(path)) {
-                fs.writeFileSync(path, Buffer.alloc(file.size),()=>{});
+                fs.writeFileSync(path, Buffer.alloc(file.size));
             }
             const t = openOverwrite(path);
             paths.push(path);
@@ -155,7 +158,7 @@ function createFiles(fileBitField){
     else{
         let path = dir + torrent.md5 + '.mtr';
         if(!fs.existsSync(path))
-            fs.writeFileSync(path, Buffer.alloc(torrent.size),()=>{});
+            fs.writeFileSync(path, Buffer.alloc(torrent.size));
         let t=openOverwrite(path);
         paths.push(path);
         for(let k=0; k<torrent.pieceCount; k++){

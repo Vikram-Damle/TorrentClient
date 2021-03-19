@@ -1,5 +1,6 @@
 <html lang="en">
 <head>
+    <link rel="stylesheet" href="uiStyles.css" type="text/css">
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,36 +8,42 @@
     
 </head>
 <body>
-    <h1>Torrent Client</h1>
+    <div id="headWrapper"><h1>Torrent Client</h1></div>
+    <div class="hline1"> </div>
+    <div class="buttonContainer">
+        <button id='start-btn' style="display: none;">Start</button>
+        <button id='show-dl' style='display: none;'>Show in Folder</button>
+        <button id='exit-btn' >Exit</button>
+    </div>
     <div id="select-torrent">
         <label for="torrent-file">Select torrent file: </label>
         <input type="file" id="torrent-file">
     </div>
-    <table>
-        <tbody id='file-list'>
-        </tbody>
-    </table>
-    <div id="progress-det" style="margin:20px 0 5px 20px; display: none;">
-        <span id="progress-perc">Starting Download...</span>
-        <span id="progress-rtime"></span>
-        <span id="progress-speed"></span>
+    <div id="file-list"></div>
+
+    <div id="progress-wrapper">
+        <div id="progress-det" style="margin:20px 0 5px 20px; display: none;">
+            <span id="progress-perc">Starting Download...</span>
+            <span id="progress-rtime"></span>
+            <span id="progress-speed"></span>
+        </div>
+        <div id="progress-bar" style="height: 10px; background: #aaa; margin: 0 20px 20px 20px; border-radius: 5px; display: none;">
+            <div id="progress-curr" style="height: 10px; width: 0; background: #2db80e; border-radius: 5px;"></div>
+        </div>
     </div>
-    <div id="progress-bar" style="height: 10px; background: #ddd; margin: 0 20px 20px 20px; border-radius: 5px; display: none;">
-        <div id="progress-curr" style="height: 10px; width: 0; background: rgb(135, 226, 90); border-radius: 5px;"></div>
-    </div>
-    <button id='start-btn' style="display: none;">Start</button>
-    <button id='show-dl' style='display: none;'>Show in Folder</button>
-    <button id='exit-btn' style="background: #f00; color: #fff; border: none; padding: 5px; border-radius: 5px; position: absolute; top: 20px; right: 20px;">Exit</button>
 </body>
 
-<template id="file-det-temp">
-    <tr class="file-det">
-        <td class="file-name"></td>
-        <td class="file-size"></td>
-        <td>
-            <input type="checkbox" class="file-checkbox">
-        </td>
-    </tr>
+<template id="file-details-template"> 
+    <div class="file-wrapper">
+        <div class="file-name"></div>
+        <div class="size-checkbox-container">
+            <div class="file-size"></div>
+            <div class="checkbox-container">
+                <input type="checkbox" class="file-checkbox">
+            </div>
+        </div>
+    </div>
+    <div class="hline2"></div>
 </template>
 
 <script>
@@ -67,10 +74,10 @@
         if(data.type=='file-list'){
             fileList.innerHTML='';
             data.data.forEach((file,ind) => {
-                var temp=document.getElementById('file-det-temp')
-                var entry = temp.content.cloneNode(true);
-                entry.querySelector('.file-name').textContent=file.name;
-                entry.querySelector('.file-size').textContent=file.size;
+                let template = document.getElementById('file-details-template');
+                let entry = template.content.cloneNode(true);
+                entry.querySelector('.file-name').textContent = file.name;
+                entry.querySelector('.file-size').textContent = file.size;
                 entry.querySelector('.file-checkbox').setAttribute('data-id',ind+1);
                 entry.querySelector('.file-checkbox').onclick = toggleStartBtn;
                 fileList.appendChild(entry);
@@ -118,7 +125,7 @@
             if(ele.checked){
                 toDl+=ele.getAttribute('data-id') + ' ';
             }else{
-                ele.parentElement.parentElement.style.color='#ddd'
+                ele.parentElement.parentElement.parentElement.className += ' file-wrapper-deselected'
             }
             ele.style.display='none';
         });
