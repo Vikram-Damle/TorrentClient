@@ -1,0 +1,129 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+  background-color: #423d36;
+
+}
+
+#headWrapper {
+  padding: 20px 40px;
+  color: #cdbaab;
+}
+
+.hline1 {
+  border: 1px solid white;
+  width: auto;
+  margin: 0 30px 10px;
+}
+
+#select-torrent {
+  display: flex;
+  justify-content: center;
+  color: #d4d4d4;
+}
+
+#torrent-file {
+  margin-left: 10px;
+  color: #939393;
+  height: auto;
+}
+
+#file-list {
+  max-height: 75%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 30px 30px 0;
+  background-color: #6d5e4b90;
+}
+
+.file-wrapper {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin: 10px 30px;
+  padding: 5px 30px 0;
+  border-radius: 30px;
+}
+
+.file-wrapper-deselected {
+  color: #41392e;
+  background-color: none;
+}
+
+.file-name, .size-checkbox-container, .file-size, .checkbox-container, .file-checkbox {
+  min-width: 0;
+}
+
+.file-name {
+  color: #decebd;
+  max-width: 80%;
+  word-wrap: break-word;
+}
+
+.size-checkbox-container {
+  display: flex;
+  justify-content: space-between;
+}
+
+.file-size {
+  color: #decebd;
+  margin-right: 15px;
+}
+
+.hline2 {
+  border: 1px solid #808080a0;
+  width: calc(100% - 55px);
+  border-radius: 10px;
+  margin: 10px 0;
+}
+
+#progress-wrapper {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background-color: #6d5e4b;
+  color: #decebd;
+}
+
+.buttonContainer {
+  display: flex;
+  width: 100%;
+  padding-right: 40px;
+  padding-bottom: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+#exit-btn {
+  background: #c66123; 
+  color: #fff; 
+  border: none; 
+  border-radius: 5px; 
+  padding: 5px; 
+  margin: 0 10px;
+}
+
+#start-btn {
+  background: #8fb022; 
+  color: #fff; 
+  border: none; 
+  border-radius: 5px; 
+  padding: 5px; 
+  margin: 0 10px;
+}
+
+#show-dl {
+  background: #d9b171; 
+  color: #fff; 
+  border: none; 
+  border-radius: 5px; 
+  padding: 5px; 
+  margin: 0 10px;
+}

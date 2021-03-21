@@ -22,6 +22,7 @@ var totalBlocksDled=0;
 var totalBlocks=0;
 /* 0 = log in terminal, 1 = log in browser inspector */
 const LOG_MODE=0;
+const peerIPs = new Set();
 
 let start;
 let end;
@@ -97,7 +98,10 @@ module.exports.addPeers=(peer_conns)=>{
         return;
     }
     peer_conns.forEach(peer_conn => {
-        initiate(peer_conn);
+        if(!peerIPs.has(peer_conn.ip)) {
+            peerIPs.add(peer_conn.ip);
+            initiate(peer_conn);
+        }
     });
 }
 
@@ -138,6 +142,7 @@ function initiate(peer_conn){
             let dp=pieces[peer.downloading];
             dp.state=0;
         }
+        peerIPs.delete(peer.ip)
         peer.status=0;
     });
 

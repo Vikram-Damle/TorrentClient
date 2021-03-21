@@ -94,16 +94,27 @@ const http = require('http');
 
 module.exports.launchUI = function(){
 
-    fs.readFile('./ui.html', function (err, html) {
-        if (err) {
-            throw err; 
-        }       
-        http.createServer(function(request, response) {  
-            response.writeHeader(200, {"Content-Type": "text/html"});  
-            response.write(html);  
-            response.end();  
-        }).listen(9495);
-    });
+    http.createServer((req, resp) => {
+        if(req.url === '/') {
+            fs.readFile('./ui.html', (err, html) => {
+                if(err) {
+                    throw err;
+                }
+                resp.writeHead(200, {"Content-Type": "text/html"});
+                resp.write(html);
+                resp.end();
+            })
+        } else if(req.url === '/uiStyles.css') {
+            fs.readFile('./uiStyles.css', (err, data) => {
+                if(err) {
+                    throw err;
+                }
+                resp.writeHead(200, {"Content-Type": "text/css"});
+                resp.write(data);
+                resp.end();
+            })
+        }
+    }).listen(9495);
 
     exec(getStartCommand()+' '+'http://localhost:9495/');
 
