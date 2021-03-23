@@ -87,7 +87,6 @@
             console.log(data.data);
         }
         else if(data.type=='update-progress'){
-            console.log(data.data.total);
             let perc = (100*data.data.completed/data.data.total).toFixed(1);
             document.getElementById('progress-curr').style.width = perc+'%'; 
             document.getElementById('progress-perc').textContent = perc+'%'; 
@@ -103,7 +102,7 @@
                     lastBlockTime=Date.now();
                 }
                 if(remTime!=-1){
-                    document.getElementById('progress-rtime').textContent = Math.floor(remTime/1000) + ' s remaining...'; 
+                    document.getElementById('progress-rtime').textContent = parseTime(Math.floor(remTime/1000)) + ' remaining...'; 
                     document.getElementById('progress-speed').textContent = speed.toFixed(1) + ' KB/s'; 
                 }
                 ctr=0;
@@ -111,11 +110,13 @@
             
         }
         else if(data.type=='finished'){
-            alert('Download Complete!');
             document.getElementById('show-dl').style.display = 'block'; 
             document.getElementById('show-dl').onclick=(e)=>{
                 ws.send(JSON.stringify({type:'show-dl'}));
             }
+            document.getElementById('progress-rtime').style.display = 'none';
+            document.getElementById('progress-speed').style.display = 'none';
+            alert('Download Complete!');
         }
     }
     function startDl(){
@@ -129,7 +130,7 @@
             }
             ele.style.display='none';
         });
-        console.log(toDl);
+
         document.getElementById('start-btn').style.display='none';
         document.getElementById('progress-bar').style.display='block';
         document.getElementById('progress-det').style.display='block';
@@ -162,5 +163,17 @@
         });
         document.getElementById('start-btn').style.display=(flag)?'block':'none';
     }
+
+    function parseTime(sec){
+        if(sec < 60)
+            return sec + 's';
+        if(sec < 60*60)
+            return Math.floor(sec/60) + 'm ' + (sec%60) + 's'
+        if(sec < 24*60*60)
+            return Math.floor(sec/3600) + 'h ' + Math.floor((sec%3600)/60) + 'm ' + (sec%60) + 's'
+        return  Math.floor(sec/86400) + 'd ' + Math.floor((sec%86400)/3600) + 'h ' 
+                + Math.floor((sec%3600)/60) + 'm ' + (sec%60) + 's'
+    }
+
 </script>
 </html>

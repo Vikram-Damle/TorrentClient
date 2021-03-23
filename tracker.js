@@ -1,6 +1,5 @@
 const dgram=require('dgram');
 const Buffer=require('buffer').Buffer;
-const urlParse=require('url').parse;
 const crypto=require('crypto');
 const utils=require('./utils');
 const config=require('./config');
@@ -15,7 +14,7 @@ module.exports.getPeers=(torrent,exp_callback)=>{
     const transID=connMsg.slice(12);
     
     torrent.announceList.forEach(annUrl => {
-        sendUdpReq(connMsg, annUrl, ()=>{console.log('connecting to tracker '+ annUrl + ' ...')});
+        sendUdpReq(connMsg, annUrl, ()=>{utils.log('connecting to tracker '+ annUrl + ' ...')});
     });
 
     socket.on('message', (response,sender) =>{
@@ -26,17 +25,17 @@ module.exports.getPeers=(torrent,exp_callback)=>{
             const connResp = parseConnResp(response);
 
             if(Buffer.compare(connResp.transID,transID)!=0){
-                console.log('Failed: Transaction ID mismatch');
+                utils.log('Failed: Transaction ID mismatch');
             }else{
-                console.log('Connected to '+ senderUrl +'!');
+                utils.log('Connected to '+ senderUrl +'!');
             }
 
             const announceReq = buildAnnounceReq(connResp.connID,torrent);
-            sendUdpReq(announceReq, senderUrl,()=>{console.log('announcing to '+ senderUrl +'...')});
+            sendUdpReq(announceReq, senderUrl,()=>{utils.log('announcing to '+ senderUrl +'...')});
         }
         else if(respType(response)==='announce'){
 
-            console.log('announce to ' + senderUrl +' successful!');
+            utils.log('announce to ' + senderUrl +' successful!');
             const announceResp = parseAnnounceResp(response);
             exp_callback(announceResp.peers);
             
@@ -44,7 +43,7 @@ module.exports.getPeers=(torrent,exp_callback)=>{
     })
 
     function sendUdpReq(message, rawUrl, callback=()=>{}){
-        const url = urlParse(rawUrl);
+        const url = new URL(rawUrl);
         if(url.protocol=='udp:')socket.send(message, 0, message.length, url.port, url.hostname, callback);
     }
 }
@@ -107,13 +106,17 @@ function parseConnResp(resp){
 }
 
 function parseAnnounceResp(resp){
+    let peers = [];
+    for (let i = 0; i < resp.slice(20).length ; i += 6) {
+        peers.push(resp.slice(20 + i, 20 + i + 6));
+    }
     return{
         action : resp.readUInt32BE(0),
         transID : resp.slice(4,8),
         interval : resp.readUInt32BE(8,12),
         leechers: resp.readUInt32BE(8),
         seeders: resp.readUInt32BE(12),
-        peers: utils.group(resp.slice(20), 6).map(address => {
+        peers: peers.map(address => {
             return {
                 ip: address.slice(0, 4).join('.'),
                 port: address.readUInt16BE(4)

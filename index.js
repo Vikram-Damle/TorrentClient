@@ -13,12 +13,16 @@ const wss= new WebSocket.Server({port:9494});
 let ws=null;
 let expectFile=false;
 let torrentData=null;
+let torrent = null;
+
+console.log(fs.readFileSync('welcome.txt','ascii'));
 
 wss.on('connection', (connws)=>{
     ws=connws;
+    ws.send(JSON.stringify({type:'text',data:fs.readFileSync('welcome.txt','ascii')}));
     ws.send(JSON.stringify({type:'connected',data:'connection successful!'}));
     fileManager.setWs(ws);
-
+    utils.setWs(ws);
     ws.on('message', (msg)=>{
         if(expectFile){
             torrentData=msg;
@@ -31,21 +35,21 @@ wss.on('connection', (connws)=>{
         }
         if(data.type == 'init'){
             if(!torrentData)return;
-            const torrent = torrentParser.parse(torrentData);
+            torrent = torrentParser.parse(torrentData);
 
             fileManager.init(torrent, (fm) =>{
                 downloader.initDownload(torrent, fm, ws);
                 tracker.getPeers(torrent,(peers)=>{
-                    console.log(peers);
+                    utils.log(peers);
                     downloader.addPeers(peers);
                 })
             });
         }
         if(data.type == 'show-dl'){
-            utils.openFolder(config.DOWNLOAD_DIR);
+            utils.openFolder(config.DOWNLOAD_DIR + torrent.filename);
         }
         if(data.type == 'exit'){
-            console.log('Client closed! Exiting...');
+            utils.log('Client closed! Exiting...');
             process.exit();
         }
         if(data.type == 'start'){
@@ -53,7 +57,7 @@ wss.on('connection', (connws)=>{
         }
     });
     ws.on('error',(e)=>{
-        console.log('Client closed! Exiting...');
+        utils.log('Client closed! Exiting...');
         process.exit();
     });
 })

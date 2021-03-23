@@ -1,24 +1,18 @@
 const crypto = require('crypto');
 const fs = require('fs');
-const config = require('./config').config;
+const config = require('./config');
 let id = null;
+let ws = null;
 
 module.exports.generateId = () => {
     //refer to https://wiki.theory.org/index.php/BitTorrentSpecification#peer_id
     if (!id) {
         id = crypto.randomBytes(20);
-        Buffer.from('-AT0001-').copy(id, 0);
+        Buffer.from('-TC0094-').copy(id, 0);
     }
     return id;
 };
 
-module.exports.group=(iterable, groupSize) => {
-    let groups = [];
-    for (let i = 0; i < iterable.length; i += groupSize) {
-      groups.push(iterable.slice(i, i + groupSize));
-    }
-    return groups;
-}
 
 module.exports.Bitfield = class Bitfield{
     constructor(size){
@@ -121,8 +115,14 @@ module.exports.launchUI = function(){
 }
 
 module.exports.openFolder = function(path){
-    path = path.replace('/','\\')
-    exec(getStartCommand()+' '+path);
+    path = path.replace('/','\\');
+    if(process.platform == 'win32' || process.platform == 'win64')
+        exec('explorer /select,' + path);
+    else{
+        path = path.split('\\');
+        path = path.slice(0,path.length-1).join('\\');
+        exec(getStartCommand() + path);
+    }
 }
 
 function getStartCommand() {
@@ -131,5 +131,23 @@ function getStartCommand() {
     case 'win32' : return 'start';
     case 'win64' : return 'start';
     default : return 'xdg-open';
+    }
+}
+
+module.exports.setWs = function(wsc){ws=wsc;};
+
+module.exports.log = function log(){
+    let log_mode = config.LOG_MODE;
+    if(log_mode.includes(0))
+        return;
+    if(log_mode.includes(1))
+        console.log(...arguments);
+    if(log_mode.includes(2) && ws){
+        let str = '';
+        for (let i = 0; i < arguments.length; i++) {
+            const ele = arguments[i];
+            str += ele + ' ';
+        }
+        ws.send(JSON.stringify({type:'text',data:str}));
     }
 }

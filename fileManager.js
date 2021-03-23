@@ -1,10 +1,6 @@
-
-const readline = require('readline').createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
 const Bitfield = require('./utils').Bitfield;
 const fs = require('fs');
+const utils = require('./utils');
 const config = require('./config');
 
 
@@ -42,7 +38,7 @@ class FileManager{
     };
 
     parseFiles(){
-        console.log("Parsing the files...");
+        utils.log("Parsing the files...");
         if(!this.torrent.files){
             let data=Buffer.alloc(this.torrent.size);
             fs.readSync(this.fileToWrite[0][0],data,0,data.length,0);
@@ -53,10 +49,7 @@ class FileManager{
             this.torrent.files.forEach((file,ind)=>{
                 if(this.filesToDl.get(ind)){
                     let startPiece = Math.floor(prefSize/torrent.pieceLength);
-                    // console.log(startPiece);
-                    // console.log(this.fileToWrite);
                     let data = Buffer.alloc(file.size);
-                    // console.log(startPiece + '=========================='+file.size+'---------'+this.fileToWrite[startPiece])
                     let offset=0;
                     for(let i=0; i<startPiece; i++){
                         if(this.fileToWrite[i] && this.fileToWrite[i].includes(this.fileDescriptors[file.path]))
@@ -71,7 +64,7 @@ class FileManager{
             });
         }
         
-        console.log("removing temp files...");
+        utils.log("removing temp files...");
         let fds=new Set();
         for (const [piece, fd] of Object.entries(this.fileDescriptors)) {
             fds.add(fd);
@@ -81,10 +74,10 @@ class FileManager{
         });
         fs.closeSync(this.bfFile);
         this.paths.forEach((path,ind)=>{
-            console.log('Deleting '+path);
+            utils.log('Deleting '+path);
             fs.unlinkSync(path);
         })
-        console.log("Finished!");
+        utils.log("Finished!");
     };
 };
 
@@ -169,7 +162,7 @@ function createFiles(fileBitField){
 };
 
 function createBitfieldFile(){
-    let bitfieldPath = config.BIT_FIELD_DIR;
+    let bitfieldPath = config.DOWNLOAD_DIR;
     if(torrent.files){
         bitfieldPath = bitfieldPath + torrent.filename + '/';
         if(!fs.existsSync(bitfieldPath)){
@@ -254,6 +247,7 @@ module.exports.handelSelection = function handleSelection(inp){
         toDl=bf;
         createFiles(filesToDl); 
         let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, filesToDl, paths, fileDescriptors);
+        utils.log("temp files created...");
         callback(fm);
     }else{
         toDl = new Bitfield(torrent.pieceCount);
