@@ -122,7 +122,6 @@
     function startDl(){
         let toDl='';
         [].forEach.call(document.getElementsByClassName('file-checkbox'),(ele)=>{
-            console.log(ele);
             if(ele.checked){
                 toDl+=ele.getAttribute('data-id') + ' ';
             }else{
@@ -148,8 +147,6 @@
             rawData = e.target.result;
             ws.send(JSON.stringify({type:'torrent-file',data:filename}));
             ws.send(rawData);
-            ws.send(JSON.stringify({type:'init'}));
-            tempBuffer = rawData;
         }
         reader.readAsArrayBuffer(file);
         

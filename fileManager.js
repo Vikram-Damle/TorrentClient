@@ -3,8 +3,19 @@ const fs = require('fs');
 const utils = require('./utils');
 const config = require('./config');
 
-
+/** The File Manager Class. Handles all file IO.*/
 class FileManager{
+    /**
+     * 
+     * @param {Object} torrent - object holding the metainfo of the torrent
+     * @param {Bitfield} toDl - bitfield storing the pieces to download
+     * @param {Number} bfFile - descriptor to file storing downloaded pieces bitfield
+     * @param {Bitfield} bf - downloaded pieces bitfield
+     * @param {Object} fileToWrite - object mapping pieces to file desciptors
+     * @param {Bitfield} filesToDl - bitfield storing the files to download
+     * @param {Array} paths - paths to the temp files
+     * @param {Object} fileDescriptors - object mapping file paths to file descriptors of the temp files
+     */
 
     constructor(torrent, toDl, bfFile, bf, fileToWrite, filesToDl, paths, fileDescriptors){
         this.torrent = torrent;
@@ -17,12 +28,19 @@ class FileManager{
         this.fileDescriptors = fileDescriptors;
     }
 
+    /**
+     * Write the piece to the corresponding temp file(s)
+     * @param {Number} piece - piece indx 
+     * @param {Buffer} pieceData - piece data buffer 
+     */
     writePiece(piece,pieceData){
+        /* Do nothing if piece is not to be downloaded*/
         if(!this.toDl.get(piece))return null;
 
         const files = this.fileToWrite[piece];
         files.forEach((file) => {
             let offset=0;
+            /* piece offset in a temp file = number of piece in the file preceding the piece * piece length */
             for(let i=0; i<piece; i++){
                 if(this.fileToWrite[i] && this.fileToWrite[i].includes(file))
                     offset+=this.torrent.pieceLength;
@@ -33,13 +51,21 @@ class FileManager{
       
     };
     
+    /**
+     * Update the dowloaded pieces bitfield file
+     * @param {Bitfield} bitfield 
+     */
     updateBitfield(bitfield){
         fs.writeSync(this.bfFile,bitfield.buffer,0,bitfield.buffer.length,0);
     };
 
+    /**
+     * Parse the downloaded temp files into readable files
+     */
     parseFiles(){
         utils.log("Parsing the files...");
         if(!this.torrent.files){
+            /* If single file, just slice the end to the file size */
             let data=Buffer.alloc(this.torrent.size);
             fs.readSync(this.fileToWrite[0][0],data,0,data.length,0);
             fs.writeFileSync(config.DOWNLOAD_DIR + this.torrent.filename, data);
@@ -48,23 +74,23 @@ class FileManager{
             let prefSize = 0;
             this.torrent.files.forEach((file,ind)=>{
                 if(this.filesToDl.get(ind)){
-                    let startPiece = Math.floor(prefSize/torrent.pieceLength);
+                    /* temp buffer for copying data */
                     let data = Buffer.alloc(file.size);
-                    let offset=0;
-                    for(let i=0; i<startPiece; i++){
-                        if(this.fileToWrite[i] && this.fileToWrite[i].includes(this.fileDescriptors[file.path]))
-                        offset+=this.torrent.pieceLength;
-                    }
-                    offset+=prefSize%torrent.pieceLength;
+                    /* offset of file data in the temp file */
+                    let offset=prefSize%this.torrent.pieceLength;
                     fs.readSync(this.fileDescriptors[file.path], data, 0, data.length, offset);
-                    createSubDirs(config.DOWNLOAD_DIR + torrent.filename + '/' + file.path);
-                    fs.writeFileSync(config.DOWNLOAD_DIR + torrent.filename + '/' + file.path, data);
+
+                    /*create the required sub directories for the file path */
+                    createSubDirs(config.DOWNLOAD_DIR + this.torrent.filename + '/' + file.path);
+
+                    fs.writeFileSync(config.DOWNLOAD_DIR + this.torrent.filename + '/' + file.path, data);
                 }
                 prefSize+=file.size;
             });
         }
         
         utils.log("removing temp files...");
+        /* close all the open files */
         let fds=new Set();
         for (const [piece, fd] of Object.entries(this.fileDescriptors)) {
             fds.add(fd);
@@ -73,62 +99,54 @@ class FileManager{
             fs.closeSync(fd);
         });
         fs.closeSync(this.bfFile);
+
+        /* remove all the temp files */
         this.paths.forEach((path,ind)=>{
             utils.log('Deleting '+path);
             fs.unlinkSync(path);
         })
+        
         utils.log("Finished!");
     };
 };
 
-var files = new Array();
-var torrent;
-var toDl;
-var bfFile;
-var bitfield;
-var fileToWrite = new Object();
-var fileDescriptors = new Object();
-var paths = new Array();
-var ws;
-var callback;
-
-module.exports.init = (torrentToDl, cb)=>{
-    torrent = torrentToDl;
-    printFiles(torrent);
-    callback=cb;
-}
-
-module.exports.setWs = (websocket)=>{
-    ws=websocket;
-}
 
 
-/** 
- * Declare an array to store the file references.
- * Create and/or open files here and store them in the array.
- * Piece-Descriptor relations are stored in fileToWrite.
- * File-Descriptor relations are stored in fileDescriptors.
+
+/**
+ * (Create and) Open the required temp files
+ * @param {Bitfield} fileBitField 
+ * @param {Object} torrent
+ * @param {Array} paths
+ * @param {Object} fileDescriptors
+ * @param {Object} fileToWrite
  */
-function createFiles(fileBitField){
+function createFiles(fileBitField, torrent, paths, fileDescriptors, fileToWrite){
     let dir=config.DOWNLOAD_DIR;
     if(torrent.files){
-        dir = dir + torrent.filename + '/'; 
+        dir = dir + torrent.filename + '/';
+        /* Create the root directory, if does not exist */ 
         if (!fs.existsSync(dir)){
             fs.mkdirSync(dir);
         }
 
-        prevSum = [0];
-        torrent.files.forEach((file, index) => {
-            prevSum[index+1] = prevSum[index] + file.size;
-            const path = dir + torrent.md5 + '_' + index + '.mtr';
+        prefSum = 0;
 
+        torrent.files.forEach((file, index) => {
+            /* Create a unique temp file, named as (md5 hash of torrent)_(file index).mtr 
+            temp files are conglomeration of minimal set of pieces containing the actual file
+            */
+            const path = dir + torrent.md5 + '_' + index + '.mtr';
+            prefSum += file.size;
+
+            /* Delete the temp file, if not required but already exists */
             if(!fileBitField.get(index)) {
                 if(fs.existsSync(path)) {
                     fs.unlinkSync(path)
                 }
                 return;
             }
-            
+            /* Create and open the temp file */
             if(!fs.existsSync(path)) {
                 fs.writeFileSync(path, Buffer.alloc(file.size));
             }
@@ -136,8 +154,10 @@ function createFiles(fileBitField){
             paths.push(path);
             fileDescriptors[file.path] = t;
             
-            const begin = Math.floor(prevSum[index] / torrent.pieceLength);
-            const end = 1 + Math.floor((prevSum[index] + file.size) / torrent.pieceLength);
+            /* Update fileToWrite. The temp file contains piece indices between begin and end */
+            const begin = Math.floor((prefSum -file.size) / torrent.pieceLength);
+            const end = 1 + Math.floor(prefSum / torrent.pieceLength);
+            //i<=end ????
             for(let i = begin; i <= end; i++) {
                 if(fileToWrite[i] && fileToWrite[i].length > 0) {
                     fileToWrite[i].push(t);
@@ -146,9 +166,12 @@ function createFiles(fileBitField){
                 }
             }
 
+
+
         })
     }
     else{
+        /* Single file case */
         let path = dir + torrent.md5 + '.mtr';
         if(!fs.existsSync(path))
             fs.writeFileSync(path, Buffer.alloc(torrent.size));
@@ -161,8 +184,12 @@ function createFiles(fileBitField){
 
 };
 
-function createBitfieldFile(){
+/**
+ * (Create and) Open the bitfield file
+ */
+function createBitfieldFile(torrent, paths){
     let bitfieldPath = config.DOWNLOAD_DIR;
+    let bitfield, bfFile;
     if(torrent.files){
         bitfieldPath = bitfieldPath + torrent.filename + '/';
         if(!fs.existsSync(bitfieldPath)){
@@ -181,6 +208,8 @@ function createBitfieldFile(){
 
     bfFile=openOverwrite(bitfieldPath);
     paths.push(bitfieldPath);
+
+    return [bitfield, bfFile];
 }
 
 
@@ -195,6 +224,10 @@ function openOverwrite(path){
     return fd;
 }
 
+/**
+ * Create the subdirectories involved in the path, if does not exist
+ * @param {String} path 
+ */
 function createSubDirs(path){
     let dir = path.split('/');
     dir.pop();
@@ -204,28 +237,54 @@ function createSubDirs(path){
     }
 }
 
-function printFiles(torrent){
+/**
+ * Format and print the file list and sizes in console;
+ * Send the file list to the UI 
+ * @param {Object} torrent - torrent metainfo object
+ * @param {WebSocket} ws - the WebSocket connection with front end UI
+ */
+ module.exports.printFiles = function printFiles(torrent, ws){
     let filedets = [];
     if(torrent.files){
+        /* calculating max filename column length */
         let mxNameLen=0;
         torrent.files.forEach((ele=>{mxNameLen=Math.max(mxNameLen,ele.path.length);}));
         mxNameLen = Math.ceil(mxNameLen/8)*8;
+
         torrent.files.forEach((ele,ind) => {
             let name = (ind+1) + '. ' + ele.path;
+
             /* adding appropriate padding */
             let padding='';
             for(var i=0;i<Math.ceil((mxNameLen-name.length)/8);i++)padding+='\t';
+
             filedets.push({name:ele.path,size:(ele.size/1048576).toFixed(2) + 'MB'});
         });
     }
     else{
         filedets.push({name:torrent.filename,size:(torrent.size/1048576).toFixed(2) + 'MB'})
     }
+    /* Send the list to front end UI */
     ws.send(JSON.stringify({type:'file-list',data:filedets}));
 }
 
-module.exports.handelSelection = function handleSelection(inp){
-    createBitfieldFile();
+/**
+ * Handle the file selection
+ * @param {String} inp - space separated file indices 
+ * @param {Object} torrent - metainfo object 
+ * @param {Function} callback - callback after selection
+ */
+module.exports.handelSelection = function handleSelection(inp, torrent, callback){
+    /* see FileManager constructor definition */
+    let toDl;
+    let bfFile;
+    let bitfield;
+    let fileToWrite = new Object();
+    let fileDescriptors = new Object();
+    let paths = new Array();
+
+    [bitfield,bfFile] = createBitfieldFile(torrent, paths);
+
     if(torrent.files){
         let sel;
         if(inp=='*') sel = Array.from({length: torrent.files.length}, (_, i) => i + 1);
@@ -242,10 +301,11 @@ module.exports.handelSelection = function handleSelection(inp){
             for( var i = beg; i<=end; i++)toDl.add(i+1);
         })
         let bf = Bitfield.fromArray(toDl,torrent.pieceCount);
+        toDl=bf;
         /* BitField of all files to be downloaded. Use to find index of file in list of all files. */
         let filesToDl = Bitfield.fromArray(sel,torrent.files.length);
-        toDl=bf;
-        createFiles(filesToDl); 
+        createFiles(filesToDl, torrent, paths, fileDescriptors, fileToWrite); 
+        console.log(fileToWrite);
         let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, filesToDl, paths, fileDescriptors);
         utils.log("temp files created...");
         callback(fm);
@@ -253,8 +313,9 @@ module.exports.handelSelection = function handleSelection(inp){
         toDl = new Bitfield(torrent.pieceCount);
         for(let i=0; i < toDl.length; i++)toDl.set(i);
         const filesToDl = Bitfield.fromArray([1], 1);
-        createFiles(filesToDl);
+        createFiles(filesToDl, torrent, paths, fileDescriptors, fileToWrite);
         let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, null, paths, fileDescriptors);
+        utils.log("temp files created...");
         callback(fm);
     }
 }
