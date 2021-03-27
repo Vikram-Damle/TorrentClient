@@ -167,10 +167,11 @@ module.exports.launchUI = function(){
 
 /** Opens the folder in explorer. The file/folder at the end of the path is selected in windows.*/
 module.exports.openFolder = function(path){
-    path = path.replace('/','\\');
-    if(process.platform == 'win32' || process.platform == 'win64')
+    path = path.replace(/\//g,'\\');
+    if(process.platform == 'win32' || process.platform == 'win64'){
+        console.log('explorer /select,' + path);
         exec('explorer /select,' + path);
-    else{
+    }else{
         /* Ubuntu default explorer does not support open and select. Just open the parent directory. */
         path = path.split('\\');
         path = path.slice(0,path.length-1).join('\\');

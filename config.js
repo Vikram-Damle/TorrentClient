@@ -10,7 +10,10 @@ module.exports = {
 
     /**
      * Download directory for the torrent;
+     * USE / (frontslash) instead of \ (backslash) for separating directories
      * PLEASE APPEND / (frontslash)
+     * eg.: 'C:/Users/John Doe/Desktop/TorrentClient Downloads/',
+     * eg.: 'files/' (relative to the project dir)
      */
     DOWNLOAD_DIR: 'files/',
 
