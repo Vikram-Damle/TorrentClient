@@ -12,7 +12,7 @@ class FileManager{
      * @param {Number} bfFile - descriptor to file storing downloaded pieces bitfield
      * @param {Bitfield} bf - downloaded pieces bitfield
      * @param {Object} fileToWrite - object mapping pieces to file desciptors
-     * @param {Bitfield} filesToDl - bitfield storing the files to download
+     * @param {Bitfield} filesToDl - bitfield storing the files to download. Indices are in accodance to the metainfo.
      * @param {Array} paths - paths to the temp files
      * @param {Object} fileDescriptors - object mapping file paths to file descriptors of the temp files
      */
@@ -165,9 +165,6 @@ function createFiles(fileBitField, torrent, paths, fileDescriptors, fileToWrite)
                     fileToWrite[i] = [t];
                 }
             }
-
-
-
         })
     }
     else{
@@ -282,13 +279,19 @@ module.exports.handelSelection = function handleSelection(inp, torrent, callback
     let fileToWrite = new Object();
     let fileDescriptors = new Object();
     let paths = new Array();
+    
+    /*Create the download directory, if does not exist */
+    createSubDirs(config.DOWNLOAD_DIR);
 
     [bitfield,bfFile] = createBitfieldFile(torrent, paths);
 
     if(torrent.files){
+        /*parse the input string */
         let sel;
         if(inp=='*') sel = Array.from({length: torrent.files.length}, (_, i) => i + 1);
         else sel = inp.trim().split(' ').map((ele)=>parseInt(ele));
+        
+        /* Calculate the piece indices that need to be downloaded */
         let prefSum = new Array();
         prefSum.push(0);
         torrent.files.forEach((ele,ind)=>{
@@ -302,20 +305,31 @@ module.exports.handelSelection = function handleSelection(inp, torrent, callback
         })
         let bf = Bitfield.fromArray(toDl,torrent.pieceCount);
         toDl=bf;
-        /* BitField of all files to be downloaded. Use to find index of file in list of all files. */
+
+
         let filesToDl = Bitfield.fromArray(sel,torrent.files.length);
+
+        /*Create the temp files*/
         createFiles(filesToDl, torrent, paths, fileDescriptors, fileToWrite); 
-        console.log(fileToWrite);
-        let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, filesToDl, paths, fileDescriptors);
         utils.log("temp files created...");
+
+        /*Create the file manager object for the downloader to use */
+        let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, filesToDl, paths, fileDescriptors);
+
         callback(fm);
+
     }else{
+        /* Calculate the piece indices that need to be downloaded. Here, all indices. */
         toDl = new Bitfield(torrent.pieceCount);
         for(let i=0; i < toDl.length; i++)toDl.set(i);
         const filesToDl = Bitfield.fromArray([1], 1);
+
         createFiles(filesToDl, torrent, paths, fileDescriptors, fileToWrite);
-        let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, null, paths, fileDescriptors);
         utils.log("temp files created...");
+
+        let fm = new FileManager(torrent, toDl, bfFile, bitfield, fileToWrite, null, paths, fileDescriptors);
+
         callback(fm);
+
     }
 }

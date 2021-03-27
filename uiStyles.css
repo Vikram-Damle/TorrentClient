@@ -53,11 +53,6 @@ body {
   border-radius: 30px;
 }
 
-.file-wrapper-deselected {
-  color: #41392e;
-  background-color: none;
-}
-
 .file-name, .size-checkbox-container, .file-size, .checkbox-container, .file-checkbox {
   min-width: 0;
 }
@@ -76,6 +71,10 @@ body {
 .file-size {
   color: #decebd;
   margin-right: 15px;
+}
+
+.file-wrapper-deselected *{
+  color: #756f67 !important; 
 }
 
 .hline2 {

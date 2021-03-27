@@ -1,2 +1,3 @@
 @echo off
-powershell "node index.js | tee log.txt"
+title Torrent Client
+node index.js

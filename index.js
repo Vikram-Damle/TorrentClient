@@ -1,22 +1,19 @@
 const fs= require('fs');
-const Buffer = require('buffer').Buffer;
+const WebSocket=require('ws');
+
 const torrentParser=require('./metainfoParser');
 const config=require('./config');
 const utils = require('./utils')
-const WebSocket=require('ws');
-
 const tracker=require('./tracker');
 const downloader = require('./downloader');
 const fileManager = require('./fileManager');
 
 /* WebSocket server to communicate with the front end UI */
-const wss= new WebSocket.Server({port:9494});
+const wss= new WebSocket.Server({port:config.UI_WS_PORT})
 /* WebSocket connection with the front end UI */
 let ws=null;
 /* If metainfo file buffer is expected in the next message */
 let expectFile=false;
-/* Raw metainfo file buffer */
-let torrentData=null;
 /* Parsed metainfo */
 let torrent = null;
 
@@ -52,7 +49,7 @@ wss.on('connection', (connws)=>{
 
         if(data.type == 'exit'){
             utils.log('Client closed! Exiting...');
-            process.exit();
+            setInterval(()=>{process.exit();},3000);
         }
 
         if(data.type == 'start'){
@@ -73,31 +70,19 @@ wss.on('connection', (connws)=>{
 
     ws.on('error',(e)=>{
         /* Exit the process if connection with UI is unexpectedly broken */
-        utils.log('Client closed! Exiting...');
-        process.exit();
+        utils.log('Client disconnected! Exiting...');
+        setInterval(()=>{process.exit();},3000);
     });
 })
 
-/* Launch the UI */
-utils.launchUI();
 
-/* ToDo:
--File parsing after download                    X
--bitfield file validation                       X
--piece validation                               X                       
--Selective file download                        X
--save file selection
--nested directories                             X
--remove temp files                              X
--end game                                       .
--last piece block                               X
--peer protocol validation                       X
--max simultaneous downloads of a piece          X
--cancel pieces if dled                          X
--corrupt file loop                              X
--http tracker support
--peer reconnection
--magnet link support by metadata extension
--input validation for file selection            
-*/
+wss.on('error',(e)=>{
+    utils.handleUILaunchError(e);
+})
+
+wss.on('listening',()=>{
+    /* Launch the UI */
+    utils.launchUI();
+})
+
 

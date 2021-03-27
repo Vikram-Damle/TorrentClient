@@ -9,7 +9,8 @@ module.exports = {
     LOG_MODE: [1],
 
     /**
-     * Download directory for the torrent
+     * Download directory for the torrent;
+     * PLEASE APPEND / (frontslash)
      */
     DOWNLOAD_DIR: 'files/',
 
@@ -31,4 +32,15 @@ module.exports = {
      * Max number of peers allowed to concurrently download the same piece
      */
     MAX_PIECE_SEEDS: 3,
+
+
+    /* Change in case there is port conflicts with other programs.*/
+    /**
+     * Client UI server port
+     */
+    UI_HTTP_PORT: 9495,
+    /**
+     * Client UI Websocket port 
+     */ 
+    UI_WS_PORT: 9494,
 }
